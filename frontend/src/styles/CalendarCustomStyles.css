@@ -1,0 +1,126 @@
+/* src/styles/CalendarCustomStyles.css */
+
+/* Améliorations générales du calendrier */
+.rbc-calendar {
+  font-family: inherit;
+}
+
+.rbc-header {
+  padding: 12px 8px;
+  font-weight: 600;
+  background-color: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  color: #1f2937;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rbc-header + .rbc-header {
+  border-left: none;
+}
+
+.rbc-off-range-bg {
+  background-color: #fefce8;
+}
+
+.rbc-today {
+  background-color: #f3e8ff;
+}
+
+.rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid #f0f0f0;
+}
+
+.rbc-time-view,
+.rbc-time-content,
+.rbc-time-gutter,
+.rbc-time-header-content {
+  border-color: #e5e7eb;
+}
+
+.rbc-timeslot-group {
+  border-bottom-color: #f3f4f6;
+}
+
+.rbc-time-gutter .rbc-timeslot-group {
+  background-color: #fafafa;
+}
+
+.rbc-time-gutter .rbc-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #4b5563;
+  padding-top: 6px;
+}
+
+.rbc-time-slot {
+  transition: background-color 0.2s ease;
+}
+
+.rbc-time-slot:hover {
+  background-color: rgba(139, 92, 246, 0.05);
+}
+
+/* Cellules de date */
+.rbc-date-cell {
+  padding: 8px;
+  font-weight: 500;
+}
+
+.rbc-date-cell > a {
+  color: #374151;
+  transition: color 0.2s;
+}
+
+.rbc-date-cell > a:hover {
+  color: #7c3aed;
+}
+
+/* Événements */
+.rbc-event {
+  border-radius: 12px !important;
+  background: none !important;
+  padding: 2px 4px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.rbc-event-content {
+  font-size: 0.7rem;
+}
+
+/* Sélection de plage */
+.rbc-selected-cell {
+  background-color: rgba(139, 92, 246, 0.2) !important;
+}
+
+.rbc-slot-selection {
+  background-color: rgba(139, 92, 246, 0.3) !important;
+  border: 1px dashed #7c3aed;
+}
+
+/* Boutons toolbar personnalisés (en plus des classes Tailwind) */
+.rbc-toolbar button {
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.rbc-toolbar button:active {
+  transform: scale(0.96);
+}
+
+/* Ajustements pour le wrapper sticky */
+.calendar-container .rbc-calendar {
+  background: white;
+  border-radius: 1rem;
+}
+
+@media (max-width: 768px) {
+  .rbc-header {
+    font-size: 0.7rem;
+    padding: 8px 4px;
+  }
+  .rbc-time-gutter .rbc-label {
+    font-size: 0.65rem;
+  }
+}

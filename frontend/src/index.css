@@ -1,0 +1,80 @@
+/* ==============================
+   TAILWIND
+============================== */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* ==============================
+   GOOGLE FONTS
+============================== */
+
+
+/* ==============================
+   BASE STYLE
+============================== */
+html,
+body {
+  height: auto;
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+  background: #EFF6FF;
+  overflow-x: hidden;
+}
+
+
+/* ==============================
+   SCROLLBAR PREMIUM (MODERNE)
+   style Apple / Notion / Vercel
+============================== */
+
+/* Chrome / Edge / Safari */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: linear-gradient(180deg,
+      rgba(37, 99, 235, 0.18),
+      rgba(37, 99, 235, 0.35));
+  transition: all 0.3s ease;
+}
+
+/* hover doux */
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg,
+      rgba(37, 99, 235, 0.45),
+      rgba(29, 78, 216, 0.70));
+}
+
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.35) transparent;
+}
+
+
+/* ==============================
+   SCROLL INVISIBLE JUSQU'A HOVER
+============================== */
+
+.auth-scroll::-webkit-scrollbar-thumb {
+  opacity: 0;
+}
+
+.auth-scroll:hover::-webkit-scrollbar-thumb {
+  opacity: 1;
+}
+
+.input {
+  @apply border rounded-xl p-3 w-full focus:ring-2 focus:ring-indigo-400 outline-none transition;
+}
