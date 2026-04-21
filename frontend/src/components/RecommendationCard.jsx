@@ -2,7 +2,7 @@ import { MapPin, Users, Heart, ImageOff } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function ResourceCard({ resource = {}, eventId, onBook, isLiked }) {
+export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, toast }) {
     const navigate = useNavigate();
 
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -60,8 +60,11 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked }
         const user = JSON.parse(localStorage.getItem("user") || "null");
 
         if (!token || !user) {
-            alert("Vous devez être connecté !");
-            return;
+            // ✅ Toast au lieu de alert()
+            toast?.info?.(
+                "Connectez-vous pour ajouter des ressources à vos favoris",
+                "Connexion requise 🔒"
+            ); return;
         }
 
         setLoadingLike(true);
@@ -96,10 +99,17 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked }
 
             setLiked(!liked);
             localStorage.setItem("user", JSON.stringify({ ...user, adore: updatedAdore }));
+            toast?.success(
+                liked
+                    ? `"${resource.name}" retiré des favoris`
+                    : `"${resource.name}" ajouté aux favoris`,
+                liked ? "Retiré" : "Ajouté ❤️",
+                2500
+            );
 
         } catch (err) {
             console.error("Erreur like :", err);
-            alert(err.message);
+            toast?.error(err.message || "Erreur lors de l'opération", "Erreur");
         } finally {
             setLoadingLike(false);
         }

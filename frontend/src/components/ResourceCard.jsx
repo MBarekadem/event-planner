@@ -2,7 +2,7 @@ import { MapPin, Users, Heart, ImageOff } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, onLikeUpdate }) {
+export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, onLikeUpdate, toast }) {
   const navigate = useNavigate();
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -10,16 +10,14 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
   const [liked, setLiked] = useState(false);
   const [loadingLike, setLoadingLike] = useState(false);
 
-  // ✅ Extraction des images (gère plusieurs formats)
+  // ✅ Extraction des images
   const extractImages = () => {
     const media = resource.media;
-
     if (!media || media.length === 0) {
       return (resource.images || []).map(img =>
         img?.startsWith("http") ? img : `http://localhost:5000/${img}`
       );
     }
-
     if (typeof media[0] === "object" && media[0]?.img_vd) {
       return media.flatMap(m =>
         (m.img_vd || []).map(img =>
@@ -27,20 +25,18 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
         )
       );
     }
-
     if (typeof media[0] === "string") {
       return media.map(img =>
         img?.startsWith("http") ? img : `http://localhost:5000/${img}`
       );
     }
-
     return [];
   };
 
   const images = extractImages();
   const isAvailable = resource.availability?.length > 0;
 
-  // ✅ Initialisation du like depuis localStorage ET la prop isLiked
+  // ✅ Init like
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "null");
     const adore = user?.adore || [];
@@ -51,7 +47,7 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
     if (isLiked !== undefined) setLiked(isLiked);
   }, [isLiked]);
 
-  // ✅ Toggle like avec notification au parent
+  // ✅ Toggle like — plus d'alert(), on utilise toast
   const toggleLike = async (e) => {
     e.stopPropagation();
     if (loadingLike) return;
@@ -60,7 +56,11 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
     const user = JSON.parse(localStorage.getItem("user") || "null");
 
     if (!token || !user) {
-      alert("Vous devez être connecté !");
+      // ✅ Toast au lieu de alert()
+      toast?.info(
+        "Connectez-vous pour ajouter des ressources à vos favoris",
+        "Connexion requise 🔒"
+      );
       return;
     }
 
@@ -87,35 +87,44 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
         ? (user.adore || []).filter(id => id !== resource._id)
         : [...(user.adore || []), resource._id];
 
-      // Mise à jour locale et localStorage
       setLiked(!liked);
       localStorage.setItem("user", JSON.stringify({ ...user, adore: updatedAdore }));
 
-      // 🔥 Notifier le parent (pour synchroniser la liste des favoris)
-      if (onLikeUpdate) {
-        onLikeUpdate(resource._id, !liked);
+      // ✅ Toast succès like/unlike
+      if (!liked) {
+        toast?.success(
+          `"${resource.name}" ajouté à vos favoris`,
+          "Favori ajouté ❤️"
+        );
+      } else {
+        toast?.warning(
+          `"${resource.name}" retiré de vos favoris`,
+          "Favori retiré"
+        );
       }
+
+      if (onLikeUpdate) onLikeUpdate(resource._id, !liked);
+
     } catch (err) {
       console.error("Erreur like :", err);
+      toast?.error(
+        err.message || "Une erreur est survenue, réessayez.",
+        "Erreur"
+      );
     } finally {
       setLoadingLike(false);
     }
   };
 
-  // ✅ Carrousel automatique au survol
+  // ✅ Carrousel auto au survol
   useEffect(() => {
     if (!isHovering || images.length <= 1) return;
-
     const interval = setInterval(() => {
-      setCurrentIndex(prev =>
-        prev === images.length - 1 ? 0 : prev + 1
-      );
+      setCurrentIndex(prev => prev === images.length - 1 ? 0 : prev + 1);
     }, 700);
-
     return () => clearInterval(interval);
   }, [isHovering, images.length]);
 
-  // ✅ Nom du prestataire
   const prestataireNom =
     resource.prestataire?.lastname ||
     resource.prestataire?.name ||
@@ -126,10 +135,7 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
   return (
     <div
       onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => {
-        setIsHovering(false);
-        setCurrentIndex(0);
-      }}
+      onMouseLeave={() => { setIsHovering(false); setCurrentIndex(0); }}
       className="group bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border cursor-pointer"
     >
       {/* Image */}
@@ -147,15 +153,24 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
           </div>
         )}
 
+        {/* Bouton like */}
         <div
           onClick={toggleLike}
-          className="absolute top-3 right-3 bg-white/80 p-2 rounded-full cursor-pointer"
+          className={`absolute top-3 right-3 bg-white/80 p-2 rounded-full cursor-pointer transition-transform duration-200
+            ${loadingLike ? "opacity-50 scale-90" : "hover:scale-110"}`}
         >
           <Heart
             size={18}
-            className={liked ? "fill-red-500 text-red-500" : "text-gray-600"}
+            className={liked
+              ? "fill-red-500 text-red-500 transition-all"
+              : "text-gray-600 transition-all"}
           />
         </div>
+
+        {/* Indicateur chargement like */}
+        {loadingLike && (
+          <div className="absolute top-3 right-3 w-8 h-8 rounded-full border-2 border-red-300 border-t-red-500 animate-spin" />
+        )}
       </div>
 
       {/* Contenu */}
@@ -175,7 +190,6 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
               <span>{resource.locationname || "Inconnue"}</span>
             </div>
           )}
-
           {resource.capacity && (
             <div className="flex items-center gap-2">
               <Users size={16} className="text-blue-500" />
@@ -188,21 +202,20 @@ export default function ResourceCard({ resource = {}, eventId, onBook, isLiked, 
           <p className="text-xl font-bold">
             {resource.price != null ? `${resource.price.toFixed(2)} DT` : "—"}
           </p>
-
           <button
             disabled={!isAvailable}
             onClick={(e) => {
               e.stopPropagation();
               navigate(`/RessourceDetail/${resource._id}`);
             }}
-            className="px-4 py-2 bg-black text-white rounded-xl"
+            className="px-4 py-2 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors"
           >
             Voir plus
           </button>
         </div>
 
         <p className="text-xs mt-3 text-gray-400">
-          Proposé par <span>{prestataireNom}</span>
+          Proposé par <span className="font-medium text-gray-600">{prestataireNom}</span>
         </p>
       </div>
     </div>

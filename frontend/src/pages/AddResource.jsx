@@ -299,6 +299,7 @@ const AddResourceForm = () => {
     type: "service",
     category: "salle",
     price: "",
+    stock: "",
     termsText: "",
     termsFile: null
   });
@@ -639,6 +640,9 @@ const AddResourceForm = () => {
         resourceData.append("termsFile", formData.termsFile);
       } else {
         resourceData.append("terms", formData.termsText || "");
+      }
+      if (formData.type === "product") {
+        resourceData.append("stock", formData.stock);
       }
 
       resourceData.append("attributes", JSON.stringify(attributes || {}));
@@ -1029,6 +1033,22 @@ const AddResourceForm = () => {
                     <input type="number" name="price" value={formData.price} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200" required />
                   </div>
                 </div>
+                {formData.type === "product" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Stock *
+                    </label>
+                    <input
+                      type="number"
+                      name="stock"
+                      value={formData.stock || ""}
+                      onChange={handleChange}
+                      min="0"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200"
+                      required
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">

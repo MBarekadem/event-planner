@@ -23,6 +23,10 @@ import { useNavigate } from 'react-router-dom';
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, getDay, addMonths, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
+import Navbar from "../components/navbar";
+import { useToast } from "../components/useToast";
+
+
 
 // Configuration des caractéristiques par catégorie
 const resourceFields = {
@@ -67,6 +71,7 @@ const formatLocation = (location) => {
 };
 
 export default function ProfilPres() {
+    const { toast, showConfirm, ToastProvider } = useToast();
     const [showRequestDetailsModal, setShowRequestDetailsModal] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState(null);
     const navigate = useNavigate();
@@ -138,7 +143,7 @@ export default function ProfilPres() {
     const [showProfileEditModal, setShowProfileEditModal] = useState(false);
     const [profileFormData, setProfileFormData] = useState({
         firstname: '',
-    
+
         email: '',
         numTel: '',
         region: ''
@@ -219,7 +224,7 @@ export default function ProfilPres() {
             setProvider(userRes.data);
             setProfileFormData({
                 firstname: userRes.data.firstname || '',
-                
+
 
                 email: userRes.data.email || '',
                 numTel: userRes.data.numTel || '',
@@ -325,7 +330,7 @@ export default function ProfilPres() {
             await fetchRequests();
         } catch (err) {
             console.error('Erreur lors de la mise à jour du statut:', err);
-            alert('Erreur lors de la mise à jour de la demande');
+            toast.error('Erreur lors de la mise à jour de la demande', "Avertissement");
         }
     };
 
@@ -506,7 +511,7 @@ export default function ProfilPres() {
             setFilteredResources(updatedResources);
             setShowEditModal(false);
             setEditingResource(null);
-            alert('Ressource modifiée avec succès !');
+            toast.success('Profil mis à jour', 'Succès');
         } catch (err) {
             console.error('Erreur:', err);
             setEditError(err.response?.data?.message || 'Erreur lors de la modification');
@@ -532,7 +537,7 @@ export default function ProfilPres() {
     const handleProfileEdit = () => {
         setProfileFormData({
             firstname: provider?.firstname || '',
-            
+
             email: provider?.email || '',
             numTel: provider?.numTel || '',
             region: provider?.region || ''
@@ -846,40 +851,24 @@ export default function ProfilPres() {
             </div>
         );
     }
+    if (loading) return (
+        <>
+            <Navbar />
+            <div className="min-h-screen flex items-center justify-center pt-24">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin" />
+                    <p className="text-xs text-gray-400">Chargement...</p>
+                </div>
+            </div>
+        </>
+    );
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+            <Navbar />
             {/* Header */}
-            <motion.div initial={{ y: -100 }} animate={{ y: 0 }} transition={{ type: "spring", stiffness: 100 }} className="bg-white/90 backdrop-blur-xl border-b border-gray-200/50 sticky top-0 z-50 shadow-lg">
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2 sm:gap-4">
-                            <motion.button whileHover={{ scale: 1.05, x: -3 }} whileTap={{ scale: 0.95 }} onClick={handleGoBack} className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all group" title="Retour à l'accueil">
-                                <ArrowLeft size={18} className="sm:w-5 sm:h-5 text-gray-600 group-hover:text-blue-600 transition-colors" />
-                                <span className="hidden sm:inline text-sm font-medium text-gray-600 group-hover:text-blue-600 transition-colors">Retour</span>
-                            </motion.button>
-                            <motion.h1 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent truncate">Espace Prestataire</motion.h1>
-                        </div>
-                        <div className="flex items-center gap-2 sm:gap-4">
-                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/add-resource')} className="hidden sm:flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl text-xs sm:text-sm font-medium group">
-                                <PlusCircle size={16} className="group-hover:rotate-90 transition-transform" />
-                                <span className="hidden md:inline">Nouvelle ressource</span>
-                                <span className="md:hidden">Nouveau</span>
-                            </motion.button>
-                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="lg:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"><Menu size={20} /></motion.button>
-                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleLogout} className="hidden sm:flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-gray-600 hover:text-red-600 transition-all rounded-xl hover:bg-red-50 text-xs sm:text-sm font-medium group" title="Déconnexion">
-                                <LogOut size={16} className="group-hover:translate-x-1 transition-transform" />
-                                <span className="hidden md:inline">Déconnexion</span>
-                            </motion.button>
-                        </div>
-                    </div>
-                    <AnimatePresence>{isMobileMenuOpen && (<motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="lg:hidden mt-4 space-y-2 border-t border-gray-100 pt-4">
-                        <button onClick={() => { navigate('/add-resource'); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-medium hover:shadow-lg transition-all"><PlusCircle size={18} /> Nouvelle ressource</button>
-                        <button onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition-all"><LogOut size={18} /> Déconnexion</button>
-                    </motion.div>)}</AnimatePresence>
-                </div>
-            </motion.div>
-
+            <div className="pt-20"></div>
             {/* Main Content */}
             <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
                 {/* Section Profil + Calendrier */}
@@ -891,7 +880,7 @@ export default function ProfilPres() {
                                 <motion.div className="relative mb-3 sm:mb-4 cursor-pointer">
                                     <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full overflow-hidden ring-4 ring-blue-100 shadow-lg">
                                         {provider?.image ? (
-                                            <img src={`http://localhost:5000/${provider.image}`} alt={`${provider.firstname} ${provider.lastname}`} className="w-full h-full object-cover" />
+                                            <img src={`http://localhost:5000${provider.image}`} alt={`${provider.firstname} ${provider.lastname}`} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
                                                 <User size={28} className="sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-white" />
@@ -932,13 +921,21 @@ export default function ProfilPres() {
 
                     {/* Calendrier */}
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="lg:col-span-2">
+
                         <div className="bg-white rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300">
+
                             <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-3 mb-4 sm:mb-6">
+
                                 <div className="flex items-center gap-2"><div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg"><CalendarIcon className="text-blue-600" size={18} /></div><h3 className="text-base sm:text-lg font-semibold text-gray-900">Disponibilités des ressources</h3></div>
                                 <div className="flex items-center gap-2 w-full xs:w-auto">
                                     <select value={selectedResourceFilter} onChange={(e) => setSelectedResourceFilter(e.target.value)} className="px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"><option value="all">Toutes les ressources</option>{resources.map(r => (<option key={r._id} value={r._id}>{r.name}</option>))}</select>
                                     <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={goToToday} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:shadow-lg transition-all flex items-center justify-center gap-1 group"><Home size={14} className="group-hover:rotate-12 transition-transform" /><span>Aujourd'hui</span></motion.button>
                                     <div className="flex gap-1 bg-gray-100 rounded-lg p-1"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={prevMonth} className="p-1.5 sm:p-2 bg-white rounded-lg hover:bg-gray-200 shadow-sm transition-all"><ChevronLeft size={16} /></motion.button><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={nextMonth} className="p-1.5 sm:p-2 bg-white rounded-lg hover:bg-gray-200 shadow-sm transition-all"><ChevronRight size={16} /></motion.button></div>
+                                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => navigate('/add-resource')} className="hidden sm:flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-xl text-xs sm:text-sm font-medium group">
+                                        <PlusCircle size={16} className="group-hover:rotate-90 transition-transform" />
+                                        <span className="hidden md:inline">Nouvelle ressource</span>
+                                        <span className="md:hidden">Nouveau</span>
+                                    </motion.button>
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-4 mb-4 text-xs"><div className="flex items-center gap-2"><div className="w-3 h-3 bg-white border border-gray-300 rounded-full"></div><span className="text-gray-600">Pas d'indisponibilité</span></div><div className="flex items-center gap-2"><div className="w-3 h-3 bg-red-500 rounded-full"></div><span className="text-gray-600">Indisponibilité(s)</span></div><div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-full"></div><span className="text-gray-600">Jour sélectionné</span></div><div className="flex items-center gap-2"><Layers size={14} className="text-gray-500" /><span className="text-gray-600">Plusieurs ressources</span></div></div>
@@ -961,6 +958,7 @@ export default function ProfilPres() {
                                 })}
                             </div>
                         </div>
+
                     </motion.div>
                 </div>
 
@@ -1411,7 +1409,7 @@ export default function ProfilPres() {
                                                         {profileImagePreview ? (
                                                             <img src={profileImagePreview} alt="Aperçu" className="w-full h-full object-cover" />
                                                         ) : provider?.image ? (
-                                                            <img src={`http://localhost:5000/${provider.image}`} alt={provider.firstname} className="w-full h-full object-cover" />
+                                                            <img src={`http://localhost:5000${provider.image}`} alt={provider.firstname} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
                                                                 <User size={32} className="text-white" />
@@ -1443,7 +1441,7 @@ export default function ProfilPres() {
                                                 />
                                             </div>
 
-                                            
+
 
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>

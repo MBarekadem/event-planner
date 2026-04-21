@@ -102,6 +102,7 @@ export default function MesDemandes() {
             const locations = response.data;
             const formatted = locations.map((loc) => ({
                 id: loc._id,
+                createdAt: loc.createdAt,
                 resourceName: loc.resource?.name || 'Ressource inconnue',
                 resourceId: loc.resource?._id,
                 clientName: loc.organisateur
@@ -117,8 +118,7 @@ export default function MesDemandes() {
                 price: loc.resource?.price || 0,
                 message: loc.message || '',
             }));
-            formatted.sort((a, b) => new Date(b.dateDebut) - new Date(a.dateDebut));
-            setRequests(formatted);
+            formatted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); setRequests(formatted);
         } catch (err) {
             console.error('Erreur lors du chargement des demandes:', err);
             showNotification('Erreur lors du chargement des demandes', 'error');
@@ -146,8 +146,8 @@ export default function MesDemandes() {
         }
         if (statusFilter !== 'all') result = result.filter((r) => r.status === statusFilter);
         result.sort((a, b) => {
-            if (sortType === 'recent') return new Date(b.dateDebut) - new Date(a.dateDebut);
-            if (sortType === 'old') return new Date(a.dateDebut) - new Date(b.dateDebut);
+            if (sortType === 'recent') return new Date(b.createdAt) - new Date(a.createdAt);
+            if (sortType === 'old') return new Date(a.createdAt) - new Date(b.createdAt);
             if (sortType === 'az') return a.resourceName.localeCompare(b.resourceName);
             if (sortType === 'za') return b.resourceName.localeCompare(a.resourceName);
             return 0;

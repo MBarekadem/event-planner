@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import NavbarProfileOrg from "../components/navbarProfileOrg";
+import Navbar from "../components/navbar";
 import AuthModal from "../components/AuthModal";
 import SelectEventModal from "../components/SelectEventModal";
 import QuickEventModal from "../components/QuickEventModal";
@@ -508,7 +508,7 @@ export default function MesReservations() {
 
   if (loading) return (
     <>
-      <NavbarProfileOrg />
+      <Navbar />
       <div className="min-h-screen flex items-center justify-center pt-24">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-500 rounded-full animate-spin" />
@@ -520,7 +520,7 @@ export default function MesReservations() {
 
   return (
     <>
-      <NavbarProfileOrg />
+      <Navbar />
 
       <style>{`
         @keyframes toastIn { from { opacity:0; transform:translateY(-14px) scale(.94); } to { opacity:1; transform:none; } }

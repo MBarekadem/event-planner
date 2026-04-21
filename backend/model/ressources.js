@@ -61,11 +61,11 @@ const resourceSchema = new mongoose.Schema(
         default: [0, 0]
       }
     },
-    
-      locationname: { 
-        type: String,
-        default: ""
-      },
+
+    locationname: {
+      type: String,
+      default: ""
+    },
 
     media: [
       {
@@ -89,11 +89,15 @@ const resourceSchema = new mongoose.Schema(
     averageRating: { type: Number, default: 0, min: 0, max: 5 },
     totalRatings: { type: Number, default: 0 },
     likesCount: { type: Number, default: 0 },
-    // CHAMP STOCK (pour les produits)
     stock: {
       type: Number,
-      default: 1,
-      min: 0
+      min: 0,
+      required: function () {
+        return this.type === "product";
+      },
+      default: function () {
+        return this.type === "product" ? 1 : undefined;
+      }
     },
 
     terms: {
@@ -102,7 +106,7 @@ const resourceSchema = new mongoose.Schema(
         default: null
       },
       file: {
-        type: String, 
+        type: String,
         default: null
       }
     }
@@ -115,12 +119,21 @@ const resourceSchema = new mongoose.Schema(
 );
 
 // validation
-resourceSchema.pre("save", async function () {
+resourceSchema.pre("save", function () {
   const hasText = this.terms?.text && this.terms.text.trim() !== "";
   const hasFile = this.terms?.file && this.terms.file !== "";
 
   if (!hasText && !hasFile) {
     throw new Error("Terms must have text or file");
+  }
+
+  // 🔥 validation stock
+  if (this.type === "product" && (this.stock === undefined || this.stock < 0)) {
+    throw new Error("Stock is required for products");
+  }
+
+  if (this.type === "service") {
+    this.stock = undefined; // 🔥 supprimer stock si service
   }
 });
 

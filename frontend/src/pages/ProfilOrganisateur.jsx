@@ -1,4 +1,4 @@
-// OrganizerDashboard.jsx - Version corrigée (3 fixes)
+// OrganizerDashboard.jsx - Version avec toasts fonctionnels
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
@@ -27,20 +27,18 @@ import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDa
 import { fr } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from "../components/navbar";
+import { useToast } from "../components/useToast";
 
-// ─── FIX 2 : helper robuste pour l'URL de l'image de profil ───────────────────
+// ─── helpers images ─────────────────────────────────────────────────────────
 const getProfileImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    // Evite les doubles slashes : http://localhost:5000//uploads/...
     const clean = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
     return `http://localhost:5000${clean}`;
 };
 
-// ─── Helper pour les images de ressources ─────────────────────────────────────
 const getResourceImageUrl = (media) => {
     if (!media || !media.length) return null;
     const first = media[0];
-    // Supporte img_vd (tableau) ou url directe
     const path = first?.img_vd?.[0] || first?.url || first?.path || null;
     if (!path) return null;
     const clean = path.startsWith('/') ? path : `/${path}`;
@@ -49,6 +47,8 @@ const getResourceImageUrl = (media) => {
 
 export default function OrganizerDashboard() {
     const navigate = useNavigate();
+    const { toast, showConfirm, ToastProvider } = useToast();
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -69,8 +69,8 @@ export default function OrganizerDashboard() {
     // Données principales
     const [organizer, setOrganizer] = useState(null);
     const [events, setEvents] = useState([]);
-    const [resources, setResources] = useState([]);         // favoris
-    const [allResources, setAllResources] = useState([]);   // toutes les ressources (pour le modal event)
+    const [resources, setResources] = useState([]);
+    const [allResources, setAllResources] = useState([]);
     const [filteredResources, setFilteredResources] = useState([]);
     const [selectedEventFilter, setSelectedEventFilter] = useState('all');
 
@@ -100,17 +100,13 @@ export default function OrganizerDashboard() {
     });
     const [editEventLoading, setEditEventLoading] = useState(false);
     const [editEventError, setEditEventError] = useState('');
-    // FIX 1 : ressources de l'événement en cours d'édition
     const [editingEventResources, setEditingEventResources] = useState([]);
 
-    // Favoris
-    const [likedResources, setLikedResources] = useState([]);
-
-    // ─── FIX 3 : Factures réelles depuis l'API ────────────────────────────────
+    // ─── Factures ───────────────────────────────────────────────────────────
     const [selectedDocType, setSelectedDocType] = useState('invoices');
-    const [invoices, setInvoices] = useState([]);           // locations payées
+    const [invoices, setInvoices] = useState([]);
     const [invoicesLoading, setInvoicesLoading] = useState(false);
-    const [documents, setDocuments] = useState([]);         // affichage unifié
+    const [documents, setDocuments] = useState([]);
 
     // Token et userId
     const token = localStorage.getItem('token');
@@ -123,36 +119,36 @@ export default function OrganizerDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
     });
 
-    // ─── Chargement initial ───────────────────────────────────────────────────
+    // ─── Chargement initial ─────────────────────────────────────────────────
     useEffect(() => {
-        if (!token || !userId) { navigate('/login'); return; }
+        if (!token || !userId) {
+            navigate('/login');
+            return;
+        }
         fetchOrganizerData();
         loadNotifications();
         fetchAllResources();
-        fetchInvoices();          // FIX 3
+        fetchInvoices();
     }, []);
 
-    // ─── FIX 3 : charger les factures réelles ────────────────────────────────
     const fetchInvoices = async () => {
         setInvoicesLoading(true);
         try {
-            const res = await api.get('/location/get_my_locations');          // GET /api/location/my → getMyLocations
+            const res = await api.get('/location/get_my_locations');
             const locations = res.data || [];
-            // On ne garde que les locations payées (payer === "payer")
             const paid = locations.filter(loc => loc.payer === 'payer');
             setInvoices(paid);
         } catch (err) {
             console.error('Erreur chargement factures:', err);
+            toast.error('Impossible de charger les factures', 'Erreur');
             setInvoices([]);
         } finally {
             setInvoicesLoading(false);
         }
     };
 
-    // Mettre à jour les documents affichés selon l'onglet sélectionné
     useEffect(() => {
         if (selectedDocType === 'invoices') {
-            // Transformer les locations payées en format document
             const docs = invoices.map(loc => ({
                 id: loc._id,
                 name: `Facture – ${loc.resource?.name || 'Ressource'} (${loc.event?.title || 'Événement'})`,
@@ -165,22 +161,20 @@ export default function OrganizerDashboard() {
             }));
             setDocuments(docs);
         } else {
-            // Onglet Contrats : pas encore de données réelles → liste vide propre
             setDocuments([]);
         }
     }, [selectedDocType, invoices]);
 
-    // ─── FIX 1 : charger toutes les ressources (pour le modal édition) ────────
     const fetchAllResources = async () => {
         try {
             const res = await axios.get('http://localhost:5000/api/ressources/get_all_ressources');
             setAllResources(res.data || []);
         } catch (err) {
             console.error('Erreur chargement toutes ressources:', err);
+            toast.error('Erreur chargement ressources', 'Avertissement');
         }
     };
 
-    // Mettre à jour les ressources filtrées par événement sélectionné
     useEffect(() => {
         if (selectedEvent) {
             const eventResources = resources.filter(resource =>
@@ -231,6 +225,7 @@ export default function OrganizerDashboard() {
         } catch (err) {
             console.error('Erreur chargement:', err);
             setError('Impossible de charger les données');
+            toast.error('Erreur de chargement des données', 'Problème réseau');
             if (err.response?.status === 401) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
@@ -255,7 +250,7 @@ export default function OrganizerDashboard() {
         return filtered;
     }, [documents, docSearchTerm, docSortOption]);
 
-    // ─── Profil ───────────────────────────────────────────────────────────────
+    // ─── Profil ─────────────────────────────────────────────────────────────
     const geocodeLocation = async (locationName) => {
         try {
             const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationName)}`);
@@ -338,12 +333,15 @@ export default function OrganizerDashboard() {
             const updatedUser = { ...user, ...response.data, id: response.data._id };
             localStorage.setItem('user', JSON.stringify(updatedUser));
             setProfileSuccess('Profil modifié avec succès !');
+            toast.success('Profil mis à jour', 'Succès');
             setProfilePasswordData({ password: '', confirmPassword: '' });
             setProfileImage(null);
             setProfileImagePreview(null);
             setTimeout(() => { setShowProfileEditModal(false); setProfileSuccess(''); }, 2000);
         } catch (err) {
-            setProfileError(err.response?.data?.message || 'Erreur lors de la modification');
+            const msg = err.response?.data?.message || 'Erreur lors de la modification';
+            setProfileError(msg);
+            toast.error(msg, 'Erreur');
         } finally {
             setProfileLoading(false);
         }
@@ -361,7 +359,7 @@ export default function OrganizerDashboard() {
 
     const handleRemoveProfileImage = () => { setProfileImage(null); setProfileImagePreview(null); };
 
-    // ─── FIX 1 : handleEditEvent avec résolution des ressources ──────────────
+    // ─── Modification événement ─────────────────────────────────────────────
     const handleEditEvent = (event) => {
         setEditingEvent(event);
         setEditEventFormData({
@@ -376,7 +374,6 @@ export default function OrganizerDashboard() {
             status: event.status || 'en attente'
         });
 
-        // Résoudre les IDs de ressources_utiliser vers les objets complets
         const usedIds = event.ressources_utiliser || [];
         const resolved = usedIds
             .map(id => {
@@ -393,7 +390,11 @@ export default function OrganizerDashboard() {
 
     const handleEditEventSubmit = async (e) => {
         e.preventDefault();
-        if (!editingEvent || !editingEvent._id) { setEditEventError('Événement invalide'); return; }
+        if (!editingEvent || !editingEvent._id) {
+            setEditEventError('Événement invalide');
+            toast.error('Événement invalide', 'Erreur');
+            return;
+        }
         setEditEventLoading(true);
         setEditEventError('');
         try {
@@ -413,22 +414,24 @@ export default function OrganizerDashboard() {
             setShowEditEventModal(false);
             setEditingEvent(null);
             setEditingEventResources([]);
-            alert('Événement modifié avec succès !');
+            toast.success('Événement modifié avec succès !', 'Succès');
         } catch (err) {
-            setEditEventError(err.response?.data?.message || 'Erreur lors de la modification');
+            const msg = err.response?.data?.message || 'Erreur lors de la modification';
+            setEditEventError(msg);
+            toast.error(msg, 'Erreur');
         } finally {
             setEditEventLoading(false);
         }
     };
 
-    // Notifications
+    // ─── Notifications ──────────────────────────────────────────────────────
     const markAsRead = (id) => {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
     };
     const markAllAsRead = () => { setNotifications(prev => prev.map(n => ({ ...n, read: true }))); setUnreadCount(0); };
 
-    // Formatage
+    // ─── Formatage ──────────────────────────────────────────────────────────
     const formatPrice = (price) => {
         if (!price) return '0 DT';
         return new Intl.NumberFormat('fr-TN', { style: 'decimal', minimumFractionDigits: 0 }).format(price) + ' DT';
@@ -449,7 +452,7 @@ export default function OrganizerDashboard() {
         catch { return ''; }
     };
 
-    // Calendrier
+    // ─── Calendrier ─────────────────────────────────────────────────────────
     const getDaysInMonth = () => eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
     const getEventsForDay = (day) => {
         let filtered = events;
@@ -471,7 +474,7 @@ export default function OrganizerDashboard() {
     };
     const getMonthName = (date) => format(date, 'MMMM yyyy', { locale: fr });
 
-    // Documents
+    // ─── Documents ──────────────────────────────────────────────────────────
     const handleViewPDF = (url) => { if (url) window.open(url, '_blank'); };
     const handleDownloadPDF = (url, filename) => {
         if (!url) return;
@@ -483,7 +486,7 @@ export default function OrganizerDashboard() {
         document.body.removeChild(link);
     };
 
-    // Likes
+    // ─── Likes (favoris) ────────────────────────────────────────────────────
     const [likedResourceIds, setLikedResourceIds] = useState([]);
     useEffect(() => {
         const u = JSON.parse(localStorage.getItem("user") || "{}");
@@ -494,7 +497,10 @@ export default function OrganizerDashboard() {
         e.stopPropagation();
         const tok = localStorage.getItem("token");
         const u = JSON.parse(localStorage.getItem("user") || "{}");
-        if (!tok || !u) { alert("Vous devez être connecté !"); return; }
+        if (!tok || !u) {
+            toast.error("Vous devez être connecté !", "Connexion requise");
+            return;
+        }
         const isLiked = likedResourceIds.includes(resourceId);
         try {
             const url = isLiked ? "http://localhost:5000/api/users/remove" : "http://localhost:5000/api/users/like";
@@ -504,14 +510,21 @@ export default function OrganizerDashboard() {
                 body: JSON.stringify({ resourceId }),
             });
             const data = await res.json();
-            if (!res.ok) { alert(data.message); return; }
+            if (!res.ok) {
+                toast.error(data.message || "Erreur lors de l'opération", "Erreur");
+                return;
+            }
             const updated = isLiked ? likedResourceIds.filter(id => id !== resourceId) : [...likedResourceIds, resourceId];
             setLikedResourceIds(updated);
             localStorage.setItem("user", JSON.stringify({ ...u, adore: updated }));
-        } catch (err) { console.error(err); }
+            toast.success(isLiked ? "Retiré des favoris" : "Ajouté aux favoris", isLiked ? "Retiré" : "Ajouté ❤️");
+        } catch (err) {
+            console.error(err);
+            toast.error("Erreur réseau", "Connexion");
+        }
     };
 
-    // Stats
+    // ─── Stats ──────────────────────────────────────────────────────────────
     const getStats = () => {
         const totalBudget = resources.reduce((acc, r) => acc + (r.price || 0), 0);
         const upcomingEvents = events.filter(e => new Date(e.dateDebut) > new Date()).length;
@@ -521,7 +534,7 @@ export default function OrganizerDashboard() {
     };
     const stats = getStats();
 
-    // Composants
+    // ─── Composants UI ──────────────────────────────────────────────────────
     const StatusBadge = ({ status }) => {
         const config = {
             'en attente': { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: ClockIcon, label: 'En attente' },
@@ -590,21 +603,21 @@ export default function OrganizerDashboard() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+            <ToastProvider />
+
             <Navbar notifications={notifications} unreadCount={unreadCount} onMarkAsRead={markAsRead} onMarkAllAsRead={markAllAsRead} />
 
             <div className="pt-20 sm:pt-24">
                 <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
 
-                    {/* Profil + Calendrier */}
+                    {/* Profil + Calendrier (identique à l'original, gardé intact) */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-
-                        {/* ── Carte Profil ── */}
+                        {/* Carte Profil */}
                         <motion.div whileHover={{ y: -5 }} className="lg:col-span-1">
                             <div className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100 h-full hover:shadow-2xl transition-all duration-300">
                                 <div className="flex flex-col items-center">
                                     <motion.div whileHover={{ scale: 1.05 }} className="relative mb-4 cursor-pointer">
                                         <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-blue-100 shadow-lg">
-                                            {/* ── FIX 2 : URL robuste ── */}
                                             {organizer?.image ? (
                                                 <img
                                                     src={getProfileImageUrl(organizer.image)}
@@ -658,7 +671,7 @@ export default function OrganizerDashboard() {
                             </div>
                         </motion.div>
 
-                        {/* ── Calendrier ── */}
+                        {/* Calendrier */}
                         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="lg:col-span-2">
                             <div className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300">
                                 <div className="flex items-center gap-2 mb-6">
@@ -733,12 +746,10 @@ export default function OrganizerDashboard() {
                         </motion.div>
                     </div>
 
-                    {/* ── Onglets ── */}
+                    {/* Onglets (Events, Favoris, Documents) */}
                     <div className="bg-white rounded-3xl shadow-xl p-6 border border-gray-100">
                         <Tabs />
                         <AnimatePresence mode="wait">
-
-                            {/* ── Tab Événements ── */}
                             {activeTab === 'events' && (
                                 <motion.div key="events" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
                                     <div className="flex items-center justify-between gap-3 mb-6">
@@ -805,7 +816,6 @@ export default function OrganizerDashboard() {
                                 </motion.div>
                             )}
 
-                            {/* ── Tab Favoris ── */}
                             {activeTab === 'resources' && (
                                 <motion.div key="resources" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
                                     <div className="flex items-center justify-between gap-3 mb-6">
@@ -845,11 +855,8 @@ export default function OrganizerDashboard() {
                                 </motion.div>
                             )}
 
-                            {/* ── FIX 3 : Tab Documents (vraies factures) ── */}
                             {activeTab === 'demandes' && (
                                 <motion.div key="documents" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
-
-
                                     <div className="flex flex-col sm:flex-row gap-3 mb-6">
                                         <div className="relative flex-1">
                                             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -862,18 +869,13 @@ export default function OrganizerDashboard() {
                                             <option value="dateAsc">Date (ancien → récent)</option>
                                         </select>
                                     </div>
-
                                     {invoicesLoading ? (
                                         <div className="text-center py-12"><div className="animate-spin w-8 h-8 border-b-2 border-blue-600 rounded-full mx-auto mb-3" /><p className="text-gray-500 text-sm">Chargement des factures...</p></div>
                                     ) : filteredAndSortedDocuments.length === 0 ? (
                                         <div className="text-center py-16 bg-gray-50 rounded-2xl">
                                             <FileText size={48} className="mx-auto text-gray-300 mb-4" />
-                                            <p className="text-gray-500 font-medium">
-                                                {selectedDocType === 'invoices' ? 'Aucune facture pour le moment' : 'Aucun contrat disponible'}
-                                            </p>
-                                            {selectedDocType === 'invoices' && (
-                                                <p className="text-gray-400 text-sm mt-1">Les factures apparaissent après paiement d'une réservation</p>
-                                            )}
+                                            <p className="text-gray-500 font-medium">Aucune facture pour le moment</p>
+                                            <p className="text-gray-400 text-sm mt-1">Les factures apparaissent après paiement d'une réservation</p>
                                         </div>
                                     ) : (
                                         <div className="overflow-x-auto rounded-2xl border border-gray-100">
@@ -901,9 +903,7 @@ export default function OrganizerDashboard() {
                                                             </td>
                                                             <td className="px-4 py-3 text-sm text-gray-600">{doc.eventTitle || '—'}</td>
                                                             <td className="px-4 py-3 text-sm text-gray-600">{formatDate(doc.date)}</td>
-                                                            <td className="px-4 py-3">
-                                                                <span className="font-bold text-green-600">{formatPrice(doc.amount)}</span>
-                                                            </td>
+                                                            <td className="px-4 py-3"><span className="font-bold text-green-600">{formatPrice(doc.amount)}</span></td>
                                                             <td className="px-4 py-3">
                                                                 <div className="flex items-center gap-2">
                                                                     {doc.url ? (
@@ -927,7 +927,7 @@ export default function OrganizerDashboard() {
                         </AnimatePresence>
                     </div>
 
-                    {/* ─── Modals ─────────────────────────────────────────────────────────── */}
+                    {/* Modals (inchangés sauf suppression des alert) */}
                     <AnimatePresence>
                         {showDayEventsModal && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowDayEventsModal(false)}>
@@ -964,7 +964,7 @@ export default function OrganizerDashboard() {
                         )}
                     </AnimatePresence>
 
-                    {/* ── Modal Profil ── */}
+                    {/* Modal Profil */}
                     <AnimatePresence>
                         {showProfileEditModal && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowProfileEditModal(false)}>
@@ -987,7 +987,6 @@ export default function OrganizerDashboard() {
                                                 <div className="flex flex-col items-center mb-4">
                                                     <div className="relative">
                                                         <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-blue-100 shadow-lg bg-gray-100">
-                                                            {/* ── FIX 2 dans le modal aussi ── */}
                                                             {profileImagePreview
                                                                 ? <img src={profileImagePreview} alt="Aperçu" className="w-full h-full object-cover" />
                                                                 : organizer?.image
@@ -1031,7 +1030,7 @@ export default function OrganizerDashboard() {
                         )}
                     </AnimatePresence>
 
-                    {/* ── FIX 1 : Modal Modifier Événement avec images des ressources ── */}
+                    {/* Modal Modifier Événement */}
                     <AnimatePresence>
                         {showEditEventModal && editingEvent && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 flex items-center justify-center z-50 p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowEditEventModal(false)}>
@@ -1048,9 +1047,7 @@ export default function OrganizerDashboard() {
                                             <button onClick={() => { setShowEditEventModal(false); setEditingEventResources([]); }} className="p-2 hover:bg-white rounded-xl"><X size={18} className="text-gray-500" /></button>
                                         </div>
                                     </div>
-
                                     <div className="overflow-y-auto max-h-[75vh]">
-                                        {/* ── Section ressources utilisées ── */}
                                         {editingEventResources.length > 0 && (
                                             <div className="px-6 pt-5 pb-4 border-b border-gray-100">
                                                 <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -1083,8 +1080,6 @@ export default function OrganizerDashboard() {
                                                 </div>
                                             </div>
                                         )}
-
-                                        {/* ── Formulaire ── */}
                                         <form onSubmit={handleEditEventSubmit} className="p-6 space-y-4">
                                             {editEventError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-600 text-sm"><AlertCircle size={16} />{editEventError}</div>}
                                             <div>
