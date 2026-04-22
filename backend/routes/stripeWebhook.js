@@ -5,10 +5,10 @@ import { generateInvoice } from "../utils/invoice.js";
 
 const router = express.Router();
 
-//const stripe = new Stripe("sk_test_51TNBjcRqjNGfrecsK0kC8PkziXuHYfccmwjjKtp6t2WIqcEPr5rzLlAOMyJVS5lpeLXMq3PFhjbgj9vXHFldLPvx00LcOuv3ls");
+const stripe = new Stripe("sk_test_51TNBjcRqjNGfrecsK0kC8PkziXuHYfccmwjjKtp6t2WIqcEPr5rzLlAOMyJVS5lpeLXMq3PFhjbgj9vXHFldLPvx00LcOuv3ls");
 
 // 🔑 Ton secret webhook (depuis Stripe Dashboard ou stripe listen)
-//const endpointSecret = "whsec_346aac35a72d94c5c40455e3bf2796773f361b939128e284e97d0b94909d9cdb";
+const endpointSecret = "whsec_346aac35a72d94c5c40455e3bf2796773f361b939128e284e97d0b94909d9cdb";
 
 router.post(
     "/webhook",

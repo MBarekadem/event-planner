@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X, Calendar, ChevronRight, Upload, CheckCircle,
   AlertCircle, Loader, FileText, ExternalLink, ShieldCheck
@@ -29,10 +29,8 @@ const CIN_STATUS = {
 function TermsModal({ isOpen, onClose, terms, resourceName }) {
   if (!isOpen) return null;
 
-  const hasPdf  = terms?.file && terms.file.trim() !== "";
+  const hasPdf = terms?.file && terms.file.trim() !== "";
   const hasText = terms?.text && terms.text.trim() !== "";
-
-  // PDF → ouvre dans un iframe
   const pdfUrl = hasPdf
     ? `http://localhost:5000/${terms.file.replace(/\\/g, "/")}`
     : null;
@@ -57,10 +55,7 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
               <p className="text-xs text-gray-400">{resourceName}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition"
-          >
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition">
             <X size={18} className="text-gray-500" />
           </button>
         </div>
@@ -68,7 +63,6 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
         {/* Contenu */}
         <div className="flex-1 overflow-hidden">
           {hasPdf ? (
-            // ── Affichage PDF inline ──────────────────────────────────────────
             <div className="flex flex-col h-full">
               <iframe
                 src={pdfUrl}
@@ -89,7 +83,6 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
               </div>
             </div>
           ) : hasText ? (
-            // ── Affichage texte ───────────────────────────────────────────────
             <div className="p-6 overflow-y-auto h-full">
               <div
                 className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap"
@@ -99,7 +92,6 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
               </div>
             </div>
           ) : (
-            // ── Aucun contrat ─────────────────────────────────────────────────
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <FileText size={40} className="mb-3 opacity-30" />
               <p className="text-sm font-medium">Aucune condition fournie</p>
@@ -127,24 +119,48 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
    Vérificateur CIN
 ───────────────────────────────────────────────── */
 function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
-  const [cinFile, setCinFile]     = useState(null);
-  const [cinError, setCinError]   = useState("");
-  const [status, setStatus]       = useState(CIN_STATUS.IDLE);
-  const [mismatch, setMismatch]   = useState([]);
-  const [cinData, setCinData]     = useState(null);
+  const [cinFile, setCinFile] = useState(null);
+  const [cinError, setCinError] = useState("");
+  const [status, setStatus] = useState(CIN_STATUS.IDLE);
+  const [mismatch, setMismatch] = useState([]);
+  const [cinData, setCinData] = useState(null);
+  const prevCinNumberRef = React.useRef(cinNumber);
+
+  // Quand le numéro CIN change après ERROR ou SUCCESS → reset pour re-vérifier
+  useEffect(() => {
+    const prev = prevCinNumberRef.current;
+    prevCinNumberRef.current = cinNumber;
+    if (prev === cinNumber) return;
+
+    if (status === CIN_STATUS.ERROR || status === CIN_STATUS.SUCCESS) {
+      setStatus(CIN_STATUS.IDLE);
+      setCinError("");
+      setMismatch([]);
+      setCinData(null);
+      onVerified(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cinNumber]);
 
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
     if (f.size > 5_000_000) { setCinError("Fichier trop lourd (max 5 Mo)"); return; }
-    setCinError(""); setStatus(CIN_STATUS.IDLE);
-    setMismatch([]); setCinData(null);
-    setCinFile(f); onVerified(false);
+    setCinError("");
+    setStatus(CIN_STATUS.IDLE);
+    setMismatch([]);
+    setCinData(null);
+    onVerified(false);
+    setCinFile(f);
   };
 
   const removeFile = () => {
-    setCinFile(null); setCinError(""); setStatus(CIN_STATUS.IDLE);
-    setMismatch([]); setCinData(null); onVerified(false);
+    setCinFile(null);
+    setCinError("");
+    setStatus(CIN_STATUS.IDLE);
+    setMismatch([]);
+    setCinData(null);
+    onVerified(false);
   };
 
   const verifyCIN = async () => {
@@ -153,6 +169,7 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
     if (!user) { setCinError("Impossible de récupérer les données utilisateur."); return; }
 
     try {
+      // ÉTAPE 1 : envoi du fichier au webhook n8n
       setStatus(CIN_STATUS.UPLOADING);
       const formData = new FormData();
       formData.append("file", cinFile);
@@ -160,6 +177,7 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
+      // ÉTAPE 2 : attente du traitement n8n puis lecture du résultat
       setStatus(CIN_STATUS.VERIFYING);
       await new Promise((r) => setTimeout(r, 3000));
 
@@ -167,42 +185,55 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
       const cinInfo = Array.isArray(data) ? data[0] : data;
       setCinData(cinInfo);
 
-      const cinNumberExtracted = (cinInfo?.cin || "")
-        .replace(/^=/, "").replace(/\s/g, "").trim();
+      const stripNum = (val) => (val || "").replace(/^=/, "").replace(/\s/g, "").trim();
+      const cinNumberExtracted = stripNum(cinInfo?.cin);
 
-      const hasValidData = cinNumberExtracted && cinInfo?.given_name && cinInfo?.surname;
-      if (!hasValidData) {
+      if (!cinNumberExtracted) {
         setCinError("Document invalide ou illisible. Veuillez importer une CIN tunisienne valide.");
-        setStatus(CIN_STATUS.ERROR); onVerified(false); return;
+        setStatus(CIN_STATUS.ERROR);
+        onVerified(false);
+        return;
       }
 
       const cinNumberEntered = cinNumber.replace(/\s/g, "").trim();
       if (!cinNumberEntered) {
         setCinError("Veuillez entrer votre numéro de CIN.");
-        setStatus(CIN_STATUS.ERROR); onVerified(false); return;
+        setStatus(CIN_STATUS.ERROR);
+        onVerified(false);
+        return;
       }
 
       if (cinNumberEntered !== cinNumberExtracted) {
         setStatus(CIN_STATUS.ERROR);
-        setMismatch([{ field: "Numéro CIN", cin: cinNumberExtracted, user: cinNumberEntered || "—" }]);
-        onVerified(false); return;
+        setMismatch([{
+          field: "Numéro CIN",
+          cin: cinNumberExtracted,
+          user: cinNumberEntered || "—",
+        }]);
+        onVerified(false);
+        return;
       }
 
-      // ✅ Succès
       setStatus(CIN_STATUS.SUCCESS);
       onVerified(true);
 
-      const token = localStorage.getItem("token");
-      await axios.put("http://localhost:5000/api/users/update-cin",
-        { cin: cinNumberExtracted },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      localStorage.setItem("user", JSON.stringify({ ...user, cin: cinNumberExtracted }));
+      try {
+        const token = localStorage.getItem("token");
+        await axios.put(
+          "http://localhost:5000/api/users/update-cin",
+          { cin: cinNumberExtracted },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        localStorage.setItem("user", JSON.stringify({ ...user, cin: cinNumberExtracted }));
+      } catch (updateErr) {
+        console.warn("Mise à jour CIN profil échouée (non bloquant):", updateErr);
+      }
 
     } catch (err) {
       console.error("Erreur vérification CIN:", err);
       setCinError(err.response?.data?.message || "Erreur lors de la vérification. Réessayez.");
-      setStatus(CIN_STATUS.ERROR); onVerified(false);
+      setStatus(CIN_STATUS.ERROR);
+      onVerified(false);
     }
   };
 
@@ -219,7 +250,7 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
           type="text"
           value={cinNumber}
           onChange={(e) => onCinNumberChange(e.target.value)}
-          placeholder="Ex : 12345678"
+          placeholder="Ex : 08361985"
           className="w-full px-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
         />
       </div>
@@ -267,7 +298,7 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
         </p>
       )}
 
-      {/* Mismatch */}
+      {/* Mismatch numéro */}
       {mismatch.length > 0 && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-2">
           <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
@@ -279,11 +310,13 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
               <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wide mb-1">{m.field}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div><span className="text-gray-400">CIN : </span><span className="font-semibold text-gray-700">{m.cin || "—"}</span></div>
-                <div><span className="text-gray-400">Compte : </span><span className="font-semibold text-gray-700">{m.user || "—"}</span></div>
+                <div><span className="text-gray-400">Saisi : </span><span className="font-semibold text-gray-700">{m.user || "—"}</span></div>
               </div>
             </div>
           ))}
-          <p className="text-[11px] text-rose-500">Utilisez la CIN correspondant à votre compte ou contactez le support.</p>
+          <p className="text-[11px] text-rose-500">
+            Corrigez le numéro ci-dessus — la vérification se relancera automatiquement.
+          </p>
         </div>
       )}
 
@@ -295,8 +328,9 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
           </p>
           {cinData && (
             <p className="text-[11px] text-emerald-600 mt-1">
-              {cinData.given_name?.latin_transliteration} {cinData.surname?.latin_transliteration}
-              {cinData.id_number ? ` · ${cinData.id_number}` : ""}
+              {cinData.nom?.replace(/^=/, "").trim() || ""}{" "}
+              {cinData.prenom?.replace(/^=/, "").trim() || ""}
+              {cinData.cin ? ` · ${cinData.cin.replace(/^=/, "").trim()}` : ""}
             </p>
           )}
         </div>
@@ -314,7 +348,7 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
           {isLoading ? (
             <>
               <Loader className="w-4 h-4 animate-spin" />
-              {status === CIN_STATUS.UPLOADING ? "Envoi en cours..." : "Vérification..."}
+              {status === CIN_STATUS.UPLOADING ? "Envoi en cours..." : "Vérification en cours..."}
             </>
           ) : (
             <>
@@ -330,8 +364,6 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
 
 /* ─────────────────────────────────────────────────
    COMPOSANT PRINCIPAL
-   Props supplémentaires :
-   - resource : object  → la ressource complète (pour récupérer terms)
 ───────────────────────────────────────────────── */
 const SelectEventModal = ({
   isOpen,
@@ -340,53 +372,70 @@ const SelectEventModal = ({
   events,
   onCreateNew,
   resourceDate,
-  resource,       // ← NOUVEAU : objet ressource complet (contient terms)
+  resource,
 }) => {
   const [selectedEventId, setSelectedEventId] = useState("");
-  const [cinVerified, setCinVerified]         = useState(false);
-  const [cinNumber, setCinNumber]             = useState("");
-  const [contractRead, setContractRead]       = useState(false);
-  const [showTerms, setShowTerms]             = useState(false);
+  const [cinVerified, setCinVerified] = useState(false);
+  const [cinNumber, setCinNumber] = useState("");
+  const [contractRead, setContractRead] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
+
+  // Reset complet à chaque ouverture
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedEventId("");
+      setCinVerified(false);
+      setCinNumber("");
+      setContractRead(false);
+      setShowTerms(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // ── Filtrage des événements par date ────────────────────────────────────────
+  // Filtrage des événements par date
   const resourceDay = resourceDate ? new Date(resourceDate) : null;
-  const toDateOnly  = (d) => {
+  const toDateOnly = (d) => {
     const date = new Date(d);
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   };
   const filteredEvents = resourceDay
     ? events.filter((ev) => {
-        const start = toDateOnly(ev.dateDebut);
-        const end   = toDateOnly(ev.dateFin);
-        const res   = toDateOnly(resourceDay);
-        return res >= start && res <= end;
-      })
+      const start = toDateOnly(ev.dateDebut);
+      const end = toDateOnly(ev.dateFin);
+      const res = toDateOnly(resourceDay);
+      return res >= start && res <= end;
+    })
     : [];
 
-  // ── Conditions pour confirmer ────────────────────────────────────────────────
-  const hasTerms = resource?.terms && (resource.terms.file || resource.terms.text);
-  const canConfirm = selectedEventId && cinVerified && cinNumber.trim() && contractRead;
+  const hasTermsPdf = resource?.terms?.file && resource.terms.file.trim() !== "";
+  const hasTermsText = resource?.terms?.text && resource.terms.text.trim() !== "";
+  const hasTerms = hasTermsPdf || hasTermsText;
+
+  // Si pas d'événements dispo, on ne bloque pas sur selectedEventId
+  const canConfirm =
+    cinVerified &&
+    cinNumber.trim() &&
+    contractRead &&
+    (filteredEvents.length === 0 || selectedEventId);
 
   const handleConfirm = () => {
     if (!canConfirm) return;
     onConfirm(selectedEventId, cinNumber);
   };
 
-  // ── Texte du bouton selon l'étape manquante ──────────────────────────────────
   const getButtonLabel = () => {
-    if (!selectedEventId)      return "Sélectionnez un événement";
-    if (!cinNumber.trim())     return "Entrez votre numéro de CIN";
-    if (!cinVerified)          return "Vérifiez votre CIN d'abord";
-    if (!contractRead)         return "Acceptez les conditions du contrat";
-    return null; // prêt
+    if (filteredEvents.length > 0 && !selectedEventId) return "Sélectionnez un événement";
+    if (!cinNumber.trim()) return "Entrez votre numéro de CIN";
+    if (!cinVerified) return "Vérifiez votre CIN d'abord";
+    if (!contractRead) return "Acceptez les conditions du contrat";
+    return null;
   };
   const buttonLabel = getButtonLabel();
 
   return (
     <>
-      {/* ── Modal termes ── */}
+      {/* Modal termes */}
       <TermsModal
         isOpen={showTerms}
         onClose={() => setShowTerms(false)}
@@ -394,7 +443,7 @@ const SelectEventModal = ({
         resourceName={resource?.name}
       />
 
-      {/* ── Modal principal ── */}
+      {/* Modal principal */}
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
 
@@ -427,10 +476,18 @@ const SelectEventModal = ({
 
             {/* Liste événements */}
             {filteredEvents.length === 0 ? (
-              <div className="text-center py-6 text-sm text-gray-400">
-                {resourceDay
-                  ? `Aucun événement à la date du ${format(resourceDay, "dd MMMM yyyy", { locale: fr })}.`
-                  : "Aucun événement disponible."}
+              <div className="text-center py-4 bg-amber-50 border border-amber-100 rounded-xl">
+                <p className="text-sm text-amber-700 font-medium">
+                  {resourceDay
+                    ? `Aucun événement à la date du ${format(resourceDay, "dd MMMM yyyy", { locale: fr })}.`
+                    : "Aucun événement disponible."}
+                </p>
+                <button
+                  onClick={onCreateNew}
+                  className="mt-2 text-blue-600 text-xs hover:underline font-medium"
+                >
+                  + Créer un événement pour cette date
+                </button>
               </div>
             ) : (
               <>
@@ -440,11 +497,10 @@ const SelectEventModal = ({
                     <button
                       key={event._id}
                       onClick={() => setSelectedEventId(event._id)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all ${
-                        selectedEventId === event._id
+                      className={`w-full text-left p-3 rounded-xl border transition-all ${selectedEventId === event._id
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-200 hover:border-blue-300"
-                      }`}
+                        }`}
                     >
                       <p className="font-medium text-gray-900">{event.title}</p>
                       <p className="text-xs text-gray-500 mt-1">
@@ -457,14 +513,14 @@ const SelectEventModal = ({
               </>
             )}
 
-            {/* ── Vérification CIN ─────────────────────────────────────────── */}
+            {/* ✅ Vérification CIN — TOUJOURS VISIBLE */}
             <CINVerifier
               onVerified={setCinVerified}
               cinNumber={cinNumber}
               onCinNumberChange={setCinNumber}
             />
 
-            {/* ── Conditions du contrat ─────────────────────────────────────── */}
+            {/* ✅ Conditions du contrat — TOUJOURS VISIBLE */}
             <div className="border-t pt-4 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-700">Conditions du contrat</p>
@@ -475,44 +531,36 @@ const SelectEventModal = ({
                 )}
               </div>
 
-              {hasTerms ? (
-                <>
+              {/* Bouton consulter */}
+
+
+              {/* Indicateur type contrat */}
+              {hasTerms && (
+                <p className="text-[11px] text-gray-400 flex items-center gap-1">
+                  <FileText className="w-3 h-3" />
+                  {hasTermsPdf ? "Contrat PDF disponible" : "Conditions textuelles disponibles"}
+                </p>
+              )}
+
+              {/* ✅ Checkbox acceptation — TOUJOURS VISIBLE */}
+              <label className="flex items-start gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={contractRead}
+                  onChange={(e) => setContractRead(e.target.checked)}
+                  className="mt-0.5 accent-blue-600"
+                />
+                <span className="text-xs text-gray-600">
+                  J'ai lu et j'accepte les{" "}
                   <button
                     type="button"
                     onClick={() => setShowTerms(true)}
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline transition font-medium"
+                    className="text-blue-600 hover:underline font-medium"
                   >
-                    <FileText className="w-4 h-4 flex-shrink-0" />
-                    Consulter les conditions du prestataire
-                    <ExternalLink className="w-3 h-3" />
+                    conditions générales du contrat
                   </button>
-
-                  <label className="flex items-start gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={contractRead}
-                      onChange={(e) => setContractRead(e.target.checked)}
-                      className="mt-0.5 accent-blue-600"
-                    />
-                    <span className="text-xs text-gray-600">
-                      J'ai lu et j'accepte les{" "}
-                      <button
-                        type="button"
-                        onClick={() => setShowTerms(true)}
-                        className="text-blue-600 hover:underline font-medium"
-                      >
-                        conditions générales du contrat
-                      </button>
-                    </span>
-                  </label>
-                </>
-              ) : (
-                /* Pas de contrat → on accepte automatiquement */
-                <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">
-                  <FileText className="w-4 h-4 opacity-40" />
-                  <span>Aucune condition spécifique fournie par ce prestataire.</span>
-                </div>
-              )}
+                </span>
+              </label>
             </div>
 
             {/* Bouton confirmer */}
@@ -523,7 +571,9 @@ const SelectEventModal = ({
                 ${canConfirm
                   ? "text-white hover:opacity-90"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-              style={canConfirm ? { background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 4px 14px rgba(37,99,235,0.35)" } : {}}
+              style={canConfirm
+                ? { background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 4px 14px rgba(37,99,235,0.35)" }
+                : {}}
             >
               {buttonLabel
                 ? buttonLabel
@@ -531,12 +581,16 @@ const SelectEventModal = ({
               }
             </button>
 
-            <button
-              onClick={onCreateNew}
-              className="w-full text-blue-600 text-sm py-2 hover:underline"
-            >
-              + Créer un nouvel événement
-            </button>
+            {/* Lien créer événement — affiché seulement s'il y a des événements aussi */}
+            {filteredEvents.length > 0 && (
+              <button
+                onClick={onCreateNew}
+                className="w-full text-blue-600 text-sm py-2 hover:underline"
+              >
+                + Créer un nouvel événement
+              </button>
+            )}
+
           </div>
         </div>
       </div>

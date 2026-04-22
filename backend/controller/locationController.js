@@ -295,12 +295,17 @@ export const payLocation = async (req, res) => {
         );
 
         // ✅ 2. Marquer les disponibilités concernées comme indisponibles (satut_disp = false)
-        await Dispo.create({
-            resource: location.resource._id,
+        // ✅ 2. Créer une indisponibilité et l'ajouter à la ressource
+        const newDispo = await Dispo.create({
             date_deb: location.dateDebut,
             date_fin: location.dateFin,
             satut_disp: false
         });
+
+        await Resource.findByIdAndUpdate(
+            location.resource._id,
+            { $push: { availability: newDispo._id } }
+        );
 
         res.status(200).json({
             message: "Paiement confirmé + facture générée",

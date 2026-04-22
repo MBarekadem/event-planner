@@ -595,7 +595,7 @@ export default function OrganizerPage() {
     const strId = toStr(resourceId);
     setLikedResources(prev => liked ? [...prev, strId] : prev.filter(id => id !== strId));
     toast.success(
-      liked ? `"${strId}" ajouté aux favoris` : `Retiré des favoris`,
+      liked ? ` ajouté aux favoris` : `Retiré des favoris`,
       liked ? "Ajouté ❤️" : "Retiré",
       2500
     );
