@@ -278,6 +278,8 @@ export const payLocation = async (req, res) => {
 
         // ✅ Mise à jour paiement
         location.payer = "payer";
+        console.log("STEP 1: paiement validé");
+
         location.paymentDate = new Date();
 
         // ✅ Générer et sauvegarder facture
@@ -294,13 +296,16 @@ export const payLocation = async (req, res) => {
             }
         );
 
+        console.log("STEP 2: création dispo");
         // ✅ 2. Marquer les disponibilités concernées comme indisponibles (satut_disp = false)
         // ✅ 2. Créer une indisponibilité et l'ajouter à la ressource
         const newDispo = await Dispo.create({
             date_deb: location.dateDebut,
             date_fin: location.dateFin,
             satut_disp: false
+
         });
+        console.log("STEP 3: push availability");
 
         await Resource.findByIdAndUpdate(
             location.resource._id,
@@ -357,6 +362,41 @@ export const deleteLocation = async (req, res) => {
         res.status(200).json({ message: "Demande annulée" });
     } catch (error) {
         console.error("ERREUR deleteLocation:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+export const getProviderInvoices = async (req, res) => {
+    try {
+        const locations = await Location.find({
+            payer: "payer"
+        })
+        .populate({
+            path: "resource",
+            match: { prestataire: req.user.id }
+        })
+        .populate("organisateur", "firstname lastname")
+        .populate("event", "title");
+
+        // garder فقط les locations liées à ce prestataire
+        const filtered = locations.filter(loc => loc.resource);
+
+        const documents = filtered.map(loc => ({
+            id: loc._id,
+            name: `Facture_${loc.event?.title || "event"}.pdf`,
+            type: "pdf",
+            size: "—", // optionnel
+            date: loc.paymentDate,
+            status: "validé",
+            url: loc.invoice
+        }));
+
+        res.status(200).json(documents);
+
+    } catch (error) {
+        console.error("ERREUR getProviderInvoices:", error);
         res.status(500).json({ message: error.message });
     }
 };

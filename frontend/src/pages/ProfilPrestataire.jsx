@@ -85,23 +85,32 @@ export default function ProfilPres() {
     const [activeTab, setActiveTab] = useState('resources');
     const [selectedResourceFilter, setSelectedResourceFilter] = useState('all');
 
-    // États pour les notifications
-    const [showNotifications, setShowNotifications] = useState(false);
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     // États pour les données
     const [provider, setProvider] = useState(null);
     const [resources, setResources] = useState([]);
     const [filteredResources, setFilteredResources] = useState([]);
     const [requests, setRequests] = useState([]);
-    const [requestsLoading, setRequestsLoading] = useState(false);
+
     const [documents, setDocuments] = useState([]);
+
+    useEffect(() => {
+        fetchInvoices();
+    }, []);
+
+    const fetchInvoices = async () => {
+        try {
+            const response = await api.get("/invoices/provider");
+            setDocuments(response.data);
+        } catch (err) {
+            console.error(err);
+            toast.error("Erreur chargement factures", "Erreur");
+        }
+    };
 
     // États pour les disponibilités
     const [allAvailability, setAllAvailability] = useState([]);
-
+    const [requestsLoading, setRequestsLoading] = useState(false);
     // États pour la modification de ressource
     const [showEditModal, setShowEditModal] = useState(false);
     const [editingResource, setEditingResource] = useState(null);
@@ -125,7 +134,6 @@ export default function ProfilPres() {
         end: '',
         status: false
     });
-    const [editCurrentMonth, setEditCurrentMonth] = useState(new Date());
 
     // États pour les images
     const [editImages, setEditImages] = useState([]);
@@ -299,13 +307,7 @@ export default function ProfilPres() {
         }
         fetchProviderData();
         fetchRequests();
-        setDocuments([
-            { id: 1, name: 'Devis - Salle de conférence.pdf', type: 'pdf', size: '2.4 MB', date: '2026-03-15', status: 'validé' },
-            { id: 2, name: 'Contrat prestation.docx', type: 'doc', size: '1.1 MB', date: '2026-03-10', status: 'en_attente' },
-            { id: 3, name: 'Facture Traiteur.pdf', type: 'pdf', size: '1.8 MB', date: '2026-03-05', status: 'validé' },
-            { id: 4, name: 'Photo salle principale.jpg', type: 'image', size: '3.2 MB', date: '2026-03-01', status: 'validé' },
-            { id: 5, name: 'Certification qualité.pdf', type: 'pdf', size: '0.8 MB', date: '2026-02-28', status: 'refusé' }
-        ]);
+
     }, []);
 
     // Nettoyage du timeout de géocodage
@@ -650,13 +652,35 @@ export default function ProfilPres() {
     };
 
     // ==================== Gestion des documents (mock) ====================
-    const handleDocumentUpload = () => {
-        alert('Fonctionnalité d\'upload à implémenter');
+    const handleDocumentUpload = async (file) => {
+        if (!file) return;
+        const formData = new FormData();
+        formData.append("invoice", file);  // adapter le nom du champ selon ton API
+
+        try {
+            const res = await api.post("/invoices/upload", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            if (res.data && res.data.invoice) {
+                setDocuments(prev => [res.data.invoice, ...prev]);
+                toast.success("Facture uploadée avec succès", "Succès");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Échec de l'upload", "Erreur");
+        }
     };
 
-    const handleDocumentDelete = (docId) => {
-        if (window.confirm('Voulez-vous vraiment supprimer ce document ?')) {
+    const handleDocumentDelete = async (docId) => {
+        const confirm = window.confirm("Supprimer définitivement cette facture ?");
+        if (!confirm) return;
+        try {
+            await api.delete(`/invoices/${docId}`);
             setDocuments(prev => prev.filter(doc => doc.id !== docId));
+            toast.success("Facture supprimée", "Succès");
+        } catch (err) {
+            console.error(err);
+            toast.error("Erreur lors de la suppression", "Erreur");
         }
     };
 
@@ -1028,7 +1052,9 @@ export default function ProfilPres() {
                                                         <td className="py-3 px-4 text-sm text-gray-600">{doc.size}</td>
                                                         <td className="py-3 px-4 text-sm text-gray-600">{formatDate(doc.date)}</td>
                                                         <td className="py-3 px-4"><StatusBadge status={doc.status} /></td>
-                                                        <td className="py-3 px-4"><div className="flex items-center gap-2"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Download size={16} /></motion.button><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDocumentDelete(doc.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></motion.button></div></td>
+                                                        <td className="py-3 px-4"><div className="flex items-center gap-2"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><a href={`http://localhost:5000/${doc.url}`} target="_blank" rel="noopener noreferrer">
+                                                            <Download size={16} />
+                                                        </a></motion.button><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDocumentDelete(doc.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></motion.button></div></td>
                                                     </motion.tr>
                                                 ))}
                                             </tbody>
