@@ -94,20 +94,29 @@ export default function ProfilPres() {
 
     const [documents, setDocuments] = useState([]);
 
+    // PAR ceci :
     useEffect(() => {
         fetchInvoices();
     }, []);
 
     const fetchInvoices = async () => {
         try {
-            const response = await api.get("/invoices/provider");
-            setDocuments(response.data);
+            const res = await api.get('/location/invoices/provider');
+            const docs = (res.data || []).map(doc => ({
+                id: doc.id || doc._id,
+                name: doc.name || `Facture_${doc.id}`,
+                type: 'pdf',
+                size: '—',
+                date: doc.date || doc.paymentDate || doc.createdAt,
+                status: doc.status || 'validé',
+                url: doc.url
+            }));
+            setDocuments(docs);
         } catch (err) {
             console.error(err);
             toast.error("Erreur chargement factures", "Erreur");
         }
     };
-
     // États pour les disponibilités
     const [allAvailability, setAllAvailability] = useState([]);
     const [requestsLoading, setRequestsLoading] = useState(false);
@@ -176,6 +185,7 @@ export default function ProfilPres() {
     const userStr = localStorage.getItem('user');
     const user = userStr ? JSON.parse(userStr) : null;
     const userId = user?.id;
+    console.log(token);
 
     const api = axios.create({
         baseURL: 'http://localhost:5000/api',
@@ -651,38 +661,6 @@ export default function ProfilPres() {
         setProfileImagePreview(null);
     };
 
-    // ==================== Gestion des documents (mock) ====================
-    const handleDocumentUpload = async (file) => {
-        if (!file) return;
-        const formData = new FormData();
-        formData.append("invoice", file);  // adapter le nom du champ selon ton API
-
-        try {
-            const res = await api.post("/invoices/upload", formData, {
-                headers: { "Content-Type": "multipart/form-data" }
-            });
-            if (res.data && res.data.invoice) {
-                setDocuments(prev => [res.data.invoice, ...prev]);
-                toast.success("Facture uploadée avec succès", "Succès");
-            }
-        } catch (err) {
-            console.error(err);
-            toast.error("Échec de l'upload", "Erreur");
-        }
-    };
-
-    const handleDocumentDelete = async (docId) => {
-        const confirm = window.confirm("Supprimer définitivement cette facture ?");
-        if (!confirm) return;
-        try {
-            await api.delete(`/invoices/${docId}`);
-            setDocuments(prev => prev.filter(doc => doc.id !== docId));
-            toast.success("Facture supprimée", "Succès");
-        } catch (err) {
-            console.error(err);
-            toast.error("Erreur lors de la suppression", "Erreur");
-        }
-    };
 
     // ==================== Gestion du calendrier ====================
     const getAvailabilityForDay = (day) => {
@@ -699,6 +677,7 @@ export default function ProfilPres() {
             }
         });
     };
+
 
     const getAvailabilityForDayFiltered = (day) => {
         if (!allAvailability || allAvailability.length === 0) return [];
@@ -804,6 +783,15 @@ export default function ProfilPres() {
     const pendingRequestsCount = requests.filter(r => r.status === 'en_attente').length;
     const totalDocuments = documents.length;
 
+
+
+    const getImageUrl = (imagePath) => {
+        if (!imagePath) return null;
+        if (imagePath.startsWith("http")) return imagePath;
+        const fileName = imagePath.replace(/\\/g, "/").split("/").pop();
+        return `http://localhost:5000/uploads/${fileName}`;
+    };
+
     // Filtrage des ressources par recherche
     useEffect(() => {
         if (searchTerm) {
@@ -903,13 +891,21 @@ export default function ProfilPres() {
                             <div className="flex flex-col items-center">
                                 <motion.div className="relative mb-3 sm:mb-4 cursor-pointer">
                                     <div className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-full overflow-hidden ring-4 ring-blue-100 shadow-lg">
-                                        {provider?.image ? (
-                                            <img src={`http://localhost:5000${provider.image}`} alt={`${provider.firstname} ${provider.lastname}`} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                                                <User size={28} className="sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-white" />
-                                            </div>
-                                        )}
+                                        {/* APRÈS */}
+                                        {getImageUrl(provider?.image) ? (
+                                            <img
+                                                src={getImageUrl(provider?.image)}
+                                                alt={`${provider?.firstname} ${provider?.lastname}`}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                            />
+                                        ) : null}
+                                        <div
+                                            className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center"
+                                            style={{ display: getImageUrl(provider?.image) ? 'none' : 'flex' }}
+                                        >
+                                            <User size={28} className="sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-white" />
+                                        </div>
                                     </div>
                                     <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 2, repeat: Infinity }} className={`absolute -bottom-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 lg:w-5 lg:h-5 rounded-full border-2 sm:border-4 border-white ${provider?.status === 'valide' ? 'bg-green-500' : 'bg-yellow-500'}`} />
                                 </motion.div>
@@ -1030,15 +1026,19 @@ export default function ProfilPres() {
                         )}
                         {activeTab === 'documents' && (
                             <motion.div key="documents" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4"><h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2"><FileText size={20} className="text-blue-600" /> Mes documents</h2><motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleDocumentUpload} className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg text-sm font-medium hover:shadow-lg"><Upload size={16} /> Upload document</motion.button></div>
+
+                                <div className="flex items-center justify-between gap-3 mb-4">
+                                    <h2 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                                        <FileText size={20} className="text-blue-600" /> Mes documents
+                                    </h2>
+                                </div>
+
                                 {documents.length > 0 ? (
                                     <div className="overflow-x-auto">
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="border-b border-gray-200">
                                                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Nom</th>
-                                                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Type</th>
-                                                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Taille</th>
                                                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Date</th>
                                                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Statut</th>
                                                     <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Actions</th>
@@ -1046,22 +1046,53 @@ export default function ProfilPres() {
                                             </thead>
                                             <tbody>
                                                 {documents.map((doc, index) => (
-                                                    <motion.tr key={doc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                                        <td className="py-3 px-4"><div className="flex items-center gap-2">{doc.type === 'pdf' ? <FileText size={16} className="text-red-500" /> : doc.type === 'image' ? <ImageIcon size={16} className="text-blue-500" /> : <File size={16} className="text-gray-500" />}<span className="text-sm font-medium text-gray-900">{doc.name}</span></div></td>
-                                                        <td className="py-3 px-4 text-sm text-gray-600 uppercase">{doc.type}</td>
-                                                        <td className="py-3 px-4 text-sm text-gray-600">{doc.size}</td>
+                                                    <motion.tr key={doc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                                                        transition={{ delay: index * 0.05 }}
+                                                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                                        <td className="py-3 px-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <FileText size={16} className="text-red-500" />
+                                                                <span className="text-sm font-medium text-gray-900">{doc.name}</span>
+                                                            </div>
+                                                        </td>
                                                         <td className="py-3 px-4 text-sm text-gray-600">{formatDate(doc.date)}</td>
                                                         <td className="py-3 px-4"><StatusBadge status={doc.status} /></td>
-                                                        <td className="py-3 px-4"><div className="flex items-center gap-2"><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><a href={`http://localhost:5000/${doc.url}`} target="_blank" rel="noopener noreferrer">
-                                                            <Download size={16} />
-                                                        </a></motion.button><motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => handleDocumentDelete(doc.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></motion.button></div></td>
+                                                        <td className="py-3 px-4">
+                                                            <div className="flex items-center gap-2">
+                                                                {doc.url ? (
+                                                                    <>
+                                                                        <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                                                            onClick={() => window.open(`http://localhost:5000/${doc.url}`, '_blank')}
+                                                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1 text-xs">
+                                                                            <Eye size={14} /> Voir
+                                                                        </motion.button>
+                                                                        <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                                                            onClick={() => {
+                                                                                const link = document.createElement('a');
+                                                                                link.href = `http://localhost:5000/${doc.url}`;
+                                                                                link.download = doc.name;
+                                                                                link.click();
+                                                                            }}
+                                                                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg flex items-center gap-1 text-xs">
+                                                                            <Download size={14} /> Télécharger
+                                                                        </motion.button>
+                                                                    </>
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-400 italic">En génération...</span>
+                                                                )}
+                                                            </div>
+                                                        </td>
                                                     </motion.tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     </div>
                                 ) : (
-                                    <div className="text-center py-12"><FileText size={48} className="mx-auto mb-4 text-gray-300" /><p className="text-gray-500 mb-4">Aucun document</p></div>
+                                    <div className="text-center py-12">
+                                        <FileText size={48} className="mx-auto mb-4 text-gray-300" />
+                                        <p className="text-gray-500">Aucune facture disponible</p>
+                                        <p className="text-sm text-gray-400 mt-1">Les factures apparaissent après paiement d'une réservation</p>
+                                    </div>
                                 )}
                             </motion.div>
                         )}
@@ -1432,10 +1463,16 @@ export default function ProfilPres() {
                                             <div className="flex flex-col items-center mb-4">
                                                 <div className="relative">
                                                     <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-blue-100 shadow-lg bg-gray-100">
+                                                        {/* APRÈS */}
                                                         {profileImagePreview ? (
                                                             <img src={profileImagePreview} alt="Aperçu" className="w-full h-full object-cover" />
-                                                        ) : provider?.image ? (
-                                                            <img src={`http://localhost:5000${provider.image}`} alt={provider.firstname} className="w-full h-full object-cover" />
+                                                        ) : getImageUrl(provider?.image) ? (
+                                                            <img
+                                                                src={getImageUrl(provider?.image)}
+                                                                alt={provider?.firstname}
+                                                                className="w-full h-full object-cover"
+                                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                                            />
                                                         ) : (
                                                             <div className="w-full h-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
                                                                 <User size={32} className="text-white" />
@@ -1612,6 +1649,6 @@ export default function ProfilPres() {
                 @keyframes shake { 0%, 100% { transform: rotate(0deg); } 10%, 30%, 50%, 70%, 90% { transform: rotate(-5deg); } 20%, 40%, 60%, 80% { transform: rotate(5deg); } }
                 .animate-shake { animation: shake 0.5s ease-in-out; }
             `}</style>
-        </div>
+        </div >
     );
 }
