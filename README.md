@@ -10,3 +10,9 @@ na3mlu taswitt
  payement -tranche /ou/totale
  annulation une demmande lors que le status est en attend
  notification :lors du payement le prestataire recoit une notification du payment 
+ gerer panier org
+ gerer ressources
+ gerer compte admin
+ gerer pofile 
+ 
+ 
