@@ -1,10 +1,8 @@
 
 eventplanner315@gmail.com
 pass: event123456
-lazmna nrakhu lenvironnement taa mobile 
+nzidu chatbot 
+na3mlu taswitt 
 
-diagramme de classe :
-table notification // cercle
-oraganisateur -----peut cree un evenement et peut reserver un ressources
-gerer evenement+ reserver ressources ---ou ----gerer evenement akhw
- 
+ adem lazem nthabtu est ce que n8n fyh  free trial wla version ly nkhdmu byha free ala toul 
+ rafinee : reservation
