@@ -1,7 +1,7 @@
 
 eventplanner315@gmail.com
 pass: event123456
-nzidu chatbot --oui
+nzidu chatbot --oui -- oui
 na3mlu taswitt 
 
  adem lazem nthabtu est ce que n8n fyh  free trial wla version ly nkhdmu byha free ala toul --free 3ala tool si on travail fil local uniquement  
