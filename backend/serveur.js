@@ -54,6 +54,7 @@ app.use(express.urlencoded({ extended: true }));
 // rendre le dossier uploads accessible
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+
 /* ================= ROUTES ================= */
 
 app.use("/api/users", userRoutes);

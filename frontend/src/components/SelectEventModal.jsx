@@ -432,6 +432,8 @@ const SelectEventModal = ({
     return null;
   };
   const buttonLabel = getButtonLabel();
+  console.log("RESOURCE:", resource);
+  console.log("TERMS:", resource?.terms);
 
   return (
     <>
@@ -440,7 +442,7 @@ const SelectEventModal = ({
         isOpen={showTerms}
         onClose={() => setShowTerms(false)}
         terms={resource?.terms}
-        resourceName={resource?.name}
+        resourceName={resource?.name ?? resource?.resourceName}
       />
 
       {/* Modal principal */}
@@ -498,8 +500,8 @@ const SelectEventModal = ({
                       key={event._id}
                       onClick={() => setSelectedEventId(event._id)}
                       className={`w-full text-left p-3 rounded-xl border transition-all ${selectedEventId === event._id
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-blue-300"
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-gray-200 hover:border-blue-300"
                         }`}
                     >
                       <p className="font-medium text-gray-900">{event.title}</p>
@@ -554,7 +556,10 @@ const SelectEventModal = ({
                   J'ai lu et j'accepte les{" "}
                   <button
                     type="button"
-                    onClick={() => setShowTerms(true)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // 🔥 TRÈS IMPORTANT
+                      setShowTerms(true);
+                    }}
                     className="text-blue-600 hover:underline font-medium"
                   >
                     conditions générales du contrat

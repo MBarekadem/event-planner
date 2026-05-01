@@ -357,7 +357,7 @@ export default function MesReservations() {
   };
 
   /* ── OUVRIR LE MODAL D'ENVOI ── */
-  const openSendModal = (item) => {
+  const openSendModal = async (item) => {
     if (!item || !item.resourceId || item.resourceId === "undefined") {
       notify("Erreur: cet article n'a pas d'identifiant valide", "error");
       return;
@@ -367,9 +367,24 @@ export default function MesReservations() {
       setAuthModal({ open: true, item });
       return;
     }
-    setSelectModal({ open: true, item });
-  };
 
+    // Charger les détails complets (dont terms) depuis l'API
+    try {
+      const res = await axios.get(`http://localhost:5000/api/ressources/get_by_id/${item.resourceId}`);
+      const fullResource = res.data;
+      // Enrichir l'item du panier avec les terms et le name complet
+      const enrichedItem = {
+        ...item,
+        terms: fullResource.terms ?? null,
+        name: fullResource.name ?? item.resourceName,
+      };
+      setSelectModal({ open: true, item: enrichedItem });
+    } catch (e) {
+      console.error("Impossible de charger la ressource:", e);
+      // Ouvrir quand même sans terms
+      setSelectModal({ open: true, item });
+    }
+  };
   /* ── AUTH SUCCESS ── */
   const handleAuthSuccess = (token, user) => {
     setAuthToken(token);
@@ -544,7 +559,8 @@ export default function MesReservations() {
         onConfirm={sendRequest}
         events={userEvents}
         onCreateNew={openQuickEventModal}
-        resourceDate={selectModal.item?.selectedDate || null} 
+        resource={selectModal.item}
+        resourceDate={selectModal.item?.selectedDate || null}
       />
 
       {/* QUICK EVENT MODAL */}
