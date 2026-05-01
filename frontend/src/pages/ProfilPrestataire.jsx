@@ -148,6 +148,7 @@ export default function ProfilPres() {
     const [editImages, setEditImages] = useState([]);
     const [editNewImages, setEditNewImages] = useState([]);
     const [editImagePreviews, setEditImagePreviews] = useState([]);
+    const[editCurrentMonth,setEditCurrentMonth]=useState([]);
 
     // États pour la gestion des caractéristiques dans la modale
     const [showAttributesModal, setShowAttributesModal] = useState(false);
