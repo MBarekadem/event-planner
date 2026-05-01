@@ -13,5 +13,4 @@ na3mlu taswitt
  gerer ressources
  gerer compte admin
  gerer pofile 
- f rapport est ce que nzidu sprint tahki ala n8n ou non !
  
