@@ -13,4 +13,5 @@ na3mlu taswitt
  gerer ressources
  gerer compte admin
  gerer pofile 
+ comment les notifications sont en temps reelle ?
  
