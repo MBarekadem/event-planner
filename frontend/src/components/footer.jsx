@@ -19,7 +19,7 @@ const Footer = () => {
   };
 
   const socialIcons = [Facebook, Instagram, Twitter];
-  const links = ["Accueil", "Services", "Ressources", "Contact"];
+  const links = ["Accueil", "Ressources", "Contact"];
 
   return (
     <footer className="relative bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800 text-gray-300 pt-20 pb-10 overflow-hidden">
