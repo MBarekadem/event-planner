@@ -91,7 +91,7 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onNavigate }) {
               onClick={onNavigate}
               className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 transition"
               style={{ background: "linear-gradient(135deg,#4338CA,#6366F1)" }}>
-              <Send size={14} /> Envoyer les demandes
+              <Send size={14} /> Continuer mes réservations 
             </button>
             <p className="text-[10px] text-gray-400 text-center">
               Connexion requise pour envoyer
