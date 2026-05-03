@@ -14,4 +14,7 @@ na3mlu taswitt
  gerer compte admin
  gerer pofile 
  comment les notifications sont en temps reelle ?
- 
+ changer le modal de signin dans la page de ressource ( il faut quel apparai ssi on clique sur envoyer demande )
+ ajouter au panier une ressource multiple fois doit etre possible 
+
+ prestataire losquil connecte il ne trouve pas la panier 
