@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-
-// ─── Model ─────────────────────────────────────────────────────────────────────
+import 'auth_screen.dart';
 
 class _PageData {
   final String title;
   final String subtitle;
   final String imagePath;
-
   const _PageData({
     required this.title,
     required this.subtitle,
@@ -14,11 +12,8 @@ class _PageData {
   });
 }
 
-// ─── Screen ────────────────────────────────────────────────────────────────────
-
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
-
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
@@ -26,23 +21,22 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _controller = PageController();
   int _currentPage = 0;
-
   static const Color _purple = Color(0xFF9C27B0);
 
   final List<_PageData> _pages = const [
     _PageData(
-      title: 'WEDDING',
-      subtitle: 'Happily ever after starts now.',
+      title: 'MARIAGE',
+      subtitle: 'Votre bonheur commence ici.',
       imagePath: 'assets/wedding.jpg',
     ),
     _PageData(
-      title: 'CATERING',
-      subtitle: 'Make life delicious.',
+      title: 'TRAITEUR',
+      subtitle: 'Des saveurs inoubliables pour vos événements.',
       imagePath: 'assets/catering.jpg',
     ),
     _PageData(
-      title: 'Photography',
-      subtitle: 'Memory is Priceless',
+      title: 'PHOTOGRAPHIE',
+      subtitle: 'Immortalisez chaque moment précieux.',
       imagePath: 'assets/photo.jpg',
     ),
   ];
@@ -50,18 +44,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _next() {
     if (_currentPage < _pages.length - 1) {
       _controller.nextPage(
-        duration: const Duration(milliseconds: 400),
+        duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
       );
     } else {
-      // TODO: Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage()));
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const AuthScreen(),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+        ),
+      );
     }
   }
 
   void _skip() {
     _controller.animateToPage(
       _pages.length - 1,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
       curve: Curves.easeInOut,
     );
   }
@@ -80,22 +83,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         controller: _controller,
         onPageChanged: (i) => setState(() => _currentPage = i),
         itemCount: _pages.length,
-        itemBuilder: (context, index) {
-          final page = _pages[index];
-          return _OnboardingPage(
-            page: page,
-            currentIndex: _currentPage,
-            total: _pages.length,
-            onNext: _next,
-            onSkip: _skip,
-          );
-        },
+        itemBuilder: (context, index) => _OnboardingPage(
+          page: _pages[index],
+          currentIndex: _currentPage,
+          total: _pages.length,
+          onNext: _next,
+          onSkip: _skip,
+        ),
       ),
     );
   }
 }
-
-// ─── Single page ───────────────────────────────────────────────────────────────
 
 class _OnboardingPage extends StatelessWidget {
   final _PageData page;
@@ -103,7 +101,6 @@ class _OnboardingPage extends StatelessWidget {
   final int total;
   final VoidCallback onNext;
   final VoidCallback onSkip;
-
   static const Color _purple = Color(0xFF9C27B0);
 
   const _OnboardingPage({
@@ -118,232 +115,210 @@ class _OnboardingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top bar: logo left + skip right
+          // ── Top Bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Logo tent icon
+                // ✅ Logo container — remplace _TentIcon par ton image
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.08),
                         blurRadius: 8,
-                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: _TentIcon(),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/logo.png', // ← Mets ton image ici
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(
+                          Icons.image_outlined,
+                          size: 22,
+                          color: Color(0xFF9C27B0),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-
                 // Skip button
                 GestureDetector(
                   onTap: onSkip,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: _purple,
                       borderRadius: BorderRadius.circular(30),
                     ),
                     child: const Text(
-                      'skip',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
+                      'Passer',
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── Title
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 500),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: Tween(
+                  begin: const Offset(0, 0.3),
+                  end: Offset.zero,
+                ).animate(animation),
+                child: child,
+              ),
+            ),
+            child: Text(
+              page.title,
+              key: ValueKey(page.title),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          // ── Subtitle
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 600),
+            child: Text(
+              page.subtitle,
+              key: ValueKey(page.subtitle),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
             ),
           ),
 
           const SizedBox(height: 16),
 
-          // ── Title
-          Center(
-            child: Text(
-              page.title,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF1A1A1A),
-                letterSpacing: 1.5,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // ── Subtitle
-          Center(
-            child: Text(
-              page.subtitle,
-              style: const TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF888888),
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // ── Image + Next button stacked
+          // ── Image Section (dots + button à l'intérieur)
           Expanded(
-            child: Stack(
-              children: [
-                // Image fills the rest of the screen
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(28),
-                      topRight: Radius.circular(28),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: Stack(
+                  children: [
+                    // Image
+                    Positioned.fill(
+                      child: TweenAnimationBuilder(
+                        duration: const Duration(milliseconds: 800),
+                        tween: Tween(begin: 1.1, end: 1.0),
+                        builder: (context, scale, child) =>
+                            Transform.scale(scale: scale, child: child),
+                        child: Image.asset(page.imagePath, fit: BoxFit.cover),
+                      ),
                     ),
-                    child: Image.asset(
-                      page.imagePath,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
 
-                // Dark gradient at bottom for button readability
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: 70,
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(28),
-                      topRight: Radius.circular(28),
-                    ),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Color(0x88000000),
-                          ],
+                    // Gradient
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 180,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Color(0x88000000),
+                              Color(0xDD000000),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
 
-                // Next button floating at bottom center
-                Positioned(
-                  left: 40,
-                  right: 40,
-                  bottom: 36,
-                  child: SizedBox(
-                    height: 54,
-                    child: ElevatedButton(
-                      onPressed: onNext,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _purple,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(50),
-                        ),
+                    // ✅ Dots — au-dessus du bouton, DANS l'image
+                    Positioned(
+                      bottom: 80,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(total, (index) {
+                          final active = index == currentIndex;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: active ? 20 : 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          );
+                        }),
                       ),
-                      child: Text(
-                        currentIndex < total - 1 ? 'Next' : 'Get Started',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
+                    ),
+
+                    // ✅ Button — en bas de l'image
+                    Positioned(
+                      left: 28,
+                      right: 28,
+                      bottom: 20,
+                      child: SizedBox(
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: onNext,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _purple,
+                            elevation: 6,
+                            shadowColor: _purple.withOpacity(0.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: Text(
+                              currentIndex < total - 1
+                                  ? 'Suivant'
+                                  : 'Commencer',
+                              key: ValueKey(currentIndex),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
+
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
-}
-
-// ─── Tent logo icon (custom painter) ──────────────────────────────────────────
-
-class _TentIcon extends StatelessWidget {
-  const _TentIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(26, 26),
-      painter: _TentPainter(),
-    );
-  }
-}
-
-class _TentPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFF9C27B0)
-      ..style = PaintingStyle.fill;
-
-    final w = size.width;
-    final h = size.height;
-
-    // Main tent triangle (left panel)
-    final leftPanel = Path()
-      ..moveTo(w * 0.5, h * 0.05)   // apex
-      ..lineTo(w * 0.0, h * 0.85)   // bottom left
-      ..lineTo(w * 0.42, h * 0.85)  // bottom right of left panel
-      ..close();
-    canvas.drawPath(leftPanel, paint);
-
-    // Right panel
-    final rightPanel = Path()
-      ..moveTo(w * 0.5, h * 0.05)   // apex
-      ..lineTo(w * 0.58, h * 0.85)  // bottom left of right panel
-      ..lineTo(w * 1.0, h * 0.85)   // bottom right
-      ..close();
-    canvas.drawPath(rightPanel, paint);
-
-    // Center gap / door (white triangle in middle bottom)
-    final door = Path()
-      ..moveTo(w * 0.5, h * 0.45)
-      ..lineTo(w * 0.42, h * 0.85)
-      ..lineTo(w * 0.58, h * 0.85)
-      ..close();
-    canvas.drawPath(door, Paint()..color = Colors.white);
-
-    // Small flag on top
-    canvas.drawCircle(Offset(w * 0.5, h * 0.04), w * 0.035, paint);
-
-    // Base line
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, h * 0.85, w, h * 0.08),
-        const Radius.circular(2),
-      ),
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
