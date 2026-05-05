@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Search, Filter, Sparkles, ChevronLeft, ChevronRight, ChevronDown,
   ChevronRight as ChevronRightIcon, ArrowUpDown, ShoppingCart, X, Send,
-  CheckCircle2, AlertCircle, Info, AlertTriangle
+  CheckCircle2, AlertCircle, Info, AlertTriangle, Plus, Minus
 } from "lucide-react";
 import ResourceCard from "../components/ResourceCard";
 import BookingModal from "../components/BookingModal";
@@ -24,34 +24,10 @@ const TOAST_ICONS = {
 };
 
 const TOAST_STYLES = {
-  success: {
-    bg: "#f0fdf4",
-    border: "#bbf7d0",
-    icon: "#16a34a",
-    title: "#15803d",
-    bar: "#22c55e",
-  },
-  error: {
-    bg: "#fef2f2",
-    border: "#fecaca",
-    icon: "#dc2626",
-    title: "#b91c1c",
-    bar: "#ef4444",
-  },
-  info: {
-    bg: "#eff6ff",
-    border: "#bfdbfe",
-    icon: "#2563eb",
-    title: "#1d4ed8",
-    bar: "#3b82f6",
-  },
-  warning: {
-    bg: "#fffbeb",
-    border: "#fde68a",
-    icon: "#d97706",
-    title: "#b45309",
-    bar: "#f59e0b",
-  },
+  success: { bg: "#f0fdf4", border: "#bbf7d0", icon: "#16a34a", title: "#15803d", bar: "#22c55e" },
+  error:   { bg: "#fef2f2", border: "#fecaca", icon: "#dc2626", title: "#b91c1c", bar: "#ef4444" },
+  info:    { bg: "#eff6ff", border: "#bfdbfe", icon: "#2563eb", title: "#1d4ed8", bar: "#3b82f6" },
+  warning: { bg: "#fffbeb", border: "#fde68a", icon: "#d97706", title: "#b45309", bar: "#f59e0b" },
 };
 
 function ToastItem({ toast, onRemove }) {
@@ -83,64 +59,24 @@ function ToastItem({ toast, onRemove }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: style.bg,
-        border: `1px solid ${style.border}`,
-        borderRadius: 14,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
-        overflow: "hidden",
-        minWidth: 300,
-        maxWidth: 380,
-        position: "relative",
-        cursor: "default",
+        background: style.bg, border: `1px solid ${style.border}`,
+        borderRadius: 14, boxShadow: "0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
+        overflow: "hidden", minWidth: 300, maxWidth: 380, position: "relative", cursor: "default",
       }}
     >
-      {/* Barre de progression */}
-      <div style={{
-        position: "absolute", bottom: 0, left: 0, height: 3,
-        width: `${progress}%`,
-        background: style.bar,
-        borderRadius: "0 0 0 14px",
-        transition: hovered ? "none" : "width 50ms linear",
-      }} />
-
+      <div style={{ position: "absolute", bottom: 0, left: 0, height: 3, width: `${progress}%`, background: style.bar, borderRadius: "0 0 0 14px", transition: hovered ? "none" : "width 50ms linear" }} />
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px 18px" }}>
-        {/* Icône */}
-        <div style={{
-          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: `${style.icon}18`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: `${style.icon}18`, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon size={18} color={style.icon} strokeWidth={2.2} />
         </div>
-
-        {/* Contenu */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {toast.title && (
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: style.title, lineHeight: 1.3 }}>
-              {toast.title}
-            </p>
-          )}
-          <p style={{
-            margin: toast.title ? "3px 0 0" : 0,
-            fontSize: 13, color: "#374151", lineHeight: 1.5,
-            wordBreak: "break-word",
-          }}>
-            {toast.message}
-          </p>
+          {toast.title && <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: style.title, lineHeight: 1.3 }}>{toast.title}</p>}
+          <p style={{ margin: toast.title ? "3px 0 0" : 0, fontSize: 13, color: "#374151", lineHeight: 1.5, wordBreak: "break-word" }}>{toast.message}</p>
         </div>
-
-        {/* Bouton fermer */}
-        <button
-          onClick={() => onRemove(toast.id)}
-          style={{
-            flexShrink: 0, background: "none", border: "none", cursor: "pointer",
-            padding: 2, color: "#9ca3af", borderRadius: 6,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "color 0.15s, background 0.15s",
-          }}
+        <button onClick={() => onRemove(toast.id)}
+          style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", padding: 2, color: "#9ca3af", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", transition: "color 0.15s, background 0.15s" }}
           onMouseEnter={e => { e.currentTarget.style.color = "#374151"; e.currentTarget.style.background = "rgba(0,0,0,0.06)"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "#9ca3af"; e.currentTarget.style.background = "none"; }}
-        >
+          onMouseLeave={e => { e.currentTarget.style.color = "#9ca3af"; e.currentTarget.style.background = "none"; }}>
           <X size={14} />
         </button>
       </div>
@@ -150,11 +86,7 @@ function ToastItem({ toast, onRemove }) {
 
 function ToastContainer({ toasts, onRemove }) {
   return (
-    <div style={{
-      position: "fixed", top: 20, right: 20, zIndex: 99999,
-      display: "flex", flexDirection: "column", gap: 10,
-      pointerEvents: "none",
-    }}>
+    <div style={{ position: "fixed", top: 20, right: 20, zIndex: 99999, display: "flex", flexDirection: "column", gap: 10, pointerEvents: "none" }}>
       <AnimatePresence mode="popLayout">
         {toasts.map(t => (
           <div key={t.id} style={{ pointerEvents: "auto" }}>
@@ -166,28 +98,21 @@ function ToastContainer({ toasts, onRemove }) {
   );
 }
 
-// ── Hook ────────────────────────────────────────────────────────────────────
 let _toastId = 0;
 function useToast() {
   const [toasts, setToasts] = useState([]);
-
-  const remove = useCallback((id) => {
-    setToasts(p => p.filter(t => t.id !== id));
-  }, []);
-
+  const remove = useCallback((id) => { setToasts(p => p.filter(t => t.id !== id)); }, []);
   const add = useCallback(({ type = "info", title, message, duration = 4000 }) => {
     const id = ++_toastId;
     setToasts(p => [...p.slice(-4), { id, type, title, message, duration }]);
     return id;
   }, []);
-
   const toast = {
     success: (message, title, duration) => add({ type: "success", title, message, duration }),
-    error: (message, title, duration) => add({ type: "error", title, message, duration }),
-    info: (message, title, duration) => add({ type: "info", title, message, duration }),
+    error:   (message, title, duration) => add({ type: "error",   title, message, duration }),
+    info:    (message, title, duration) => add({ type: "info",    title, message, duration }),
     warning: (message, title, duration) => add({ type: "warning", title, message, duration }),
   };
-
   return { toasts, remove, toast };
 }
 
@@ -195,28 +120,28 @@ function useToast() {
   CONSTANTS
 ───────────────────────────────────────────────── */
 const categoryGroups = [
-  { label: "Salle", value: "salle", subCategories: null },
-  { label: "Décoration", value: "decoration", subCategories: null },
-  { label: "Matériel", value: "materiel", subCategories: null },
+  { label: "Salle",       value: "salle",      subCategories: null },
+  { label: "Décoration",  value: "decoration", subCategories: null },
+  { label: "Matériel",    value: "materiel",   subCategories: null },
   {
     label: "Personnel", value: "personnel",
     subCategories: [
-      { label: "Traiteur", value: "traiteur" },
-      { label: "DJ", value: "dj" },
-      { label: "Photographe", value: "photographe" },
-      { label: "Serveur", value: "serveur" },
+      { label: "Traiteur",     value: "traiteur"    },
+      { label: "DJ",           value: "dj"          },
+      { label: "Photographe",  value: "photographe" },
+      { label: "Serveur",      value: "serveur"     },
     ],
   },
 ];
 
 const sortOptions = [
-  { label: "Par défaut", value: "" },
-  { label: "Prix croissant", value: "price_asc" },
-  { label: "Prix décroissant", value: "price_desc" },
-  { label: "Nom A → Z", value: "name_asc" },
-  { label: "Nom Z → A", value: "name_desc" },
-  { label: "Date récente", value: "date_desc" },
-  { label: "Date ancienne", value: "date_asc" },
+  { label: "Par défaut",     value: ""          },
+  { label: "Prix croissant", value: "price_asc"  },
+  { label: "Prix décroissant",value: "price_desc"},
+  { label: "Nom A → Z",      value: "name_asc"  },
+  { label: "Nom Z → A",      value: "name_desc" },
+  { label: "Date récente",   value: "date_desc" },
+  { label: "Date ancienne",  value: "date_asc"  },
 ];
 
 /* ─────────────────────────────────────────────────
@@ -238,30 +163,30 @@ const toStr = (id) => {
   SPINNER
 ───────────────────────────────────────────────── */
 function Spinner({ size = "md", color = "blue" }) {
-  const sizes = { sm: "w-5 h-5 border-2", md: "w-8 h-8 border-3", lg: "w-12 h-12 border-4" };
+  const sizes  = { sm: "w-5 h-5 border-2", md: "w-8 h-8 border-3", lg: "w-12 h-12 border-4" };
   const colors = { blue: "border-blue-600", purple: "border-purple-600", white: "border-white" };
-  return (
-    <div className={`${sizes[size]} ${colors[color]} border-t-transparent rounded-full animate-spin inline-block`} />
-  );
+  return <div className={`${sizes[size]} ${colors[color]} border-t-transparent rounded-full animate-spin inline-block`} />;
 }
 
 /* ─────────────────────────────────────────────────
-  CART SIDEBAR
+  CART SIDEBAR  (updated — quantity controls + auth on send only)
 ───────────────────────────────────────────────── */
-function CartSidebar({ isOpen, onClose, cartItems, onRemove, onSendClick }) {
-  const total = cartItems.reduce((s, i) => s + (i.totalPrice || i.price), 0);
+function CartSidebar({ isOpen, onClose, cartItems, onRemove, onUpdateQuantity, onNavigateWithAuth }) {
+  const total = cartItems.reduce((s, i) => s + (i.totalPrice || i.price) * (i.quantity || 1), 0);
+
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-40" onClick={onClose} />}
       <div
         className="fixed top-0 right-0 h-full z-50 flex flex-col shadow-2xl"
         style={{
-          width: 340, background: "#fff",
+          width: 360, background: "#fff",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.3s cubic-bezier(.4,0,.2,1)",
           borderLeft: "0.5px solid #e5e7eb",
         }}
       >
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <ShoppingCart size={18} className="text-indigo-600" />
@@ -277,6 +202,7 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onSendClick }) {
           </button>
         </div>
 
+        {/* Items */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {cartItems.length === 0 ? (
             <div className="text-center py-16 text-gray-400">
@@ -284,47 +210,81 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onSendClick }) {
               <p className="text-sm font-medium">Votre panier est vide</p>
               <p className="text-xs mt-1 text-gray-300">Ajoutez des ressources pour commencer</p>
             </div>
-          ) : cartItems.map((item) => (
-            <div key={item.resourceId} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                  <span
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={item.type === "product"
-                      ? { background: "#DCFCE7", color: "#166534" }
-                      : { background: "#EDE9FE", color: "#5B21B6" }}
-                  >
-                    {item.type === "product" ? "Produit" : "Service"}
-                  </span>
-                  <span className="text-xs font-semibold text-gray-800 truncate">{item.resourceName}</span>
+          ) : cartItems.map((item) => {
+            const isProduct = item.type === "product";
+            const itemTotal = (item.totalPrice || item.price) * (item.quantity || 1);
+            return (
+              <div key={item.cartKey || item.resourceId} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={isProduct
+                          ? { background: "#DCFCE7", color: "#166534" }
+                          : { background: "#EDE9FE", color: "#5B21B6" }}>
+                        {isProduct ? "Produit" : "Service"}
+                      </span>
+                      <span className="text-xs font-semibold text-gray-800 truncate">{item.resourceName}</span>
+                    </div>
+                    {item.selectedDate && (
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(item.selectedDate).toLocaleDateString("fr-FR")}
+                        {item.selectedTimes?.length > 0 && ` · ${item.selectedTimes.length} créneau(x)`}
+                      </p>
+                    )}
+                    <p className="text-xs font-bold text-indigo-600 mt-1">{itemTotal}DT</p>
+                  </div>
+                  <button
+                    onClick={() => onRemove(item.cartKey || item.resourceId)}
+                    className="p-1 text-gray-300 hover:text-rose-500 transition flex-shrink-0">
+                    <X size={13} />
+                  </button>
                 </div>
-                {item.selectedDate && (
-                  <p className="text-[10px] text-gray-400">
-                    {new Date(item.selectedDate).toLocaleDateString("fr-FR")}
-                    {item.selectedTimes?.length > 0 && ` · ${item.selectedTimes.length} créneau(x)`}
-                  </p>
+
+                {/* Quantity controls — products only */}
+                {isProduct && (
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                    <span className="text-[11px] text-gray-500">Quantité</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onUpdateQuantity(item.cartKey || item.resourceId, (item.quantity || 1) - 1)}
+                        disabled={(item.quantity || 1) <= 1}
+                        className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span className="text-sm font-bold text-gray-800 w-5 text-center">{item.quantity || 1}</span>
+                      <button
+                        onClick={() => onUpdateQuantity(item.cartKey || item.resourceId, (item.quantity || 1) + 1)}
+                        disabled={(item.quantity || 1) >= (item.stock || 999)}
+                        className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      >
+                        <Plus size={11} />
+                      </button>
+                    </div>
+                    {item.stock && (
+                      <span className="text-[10px] text-gray-400">{item.stock} dispo</span>
+                    )}
+                  </div>
                 )}
-                <p className="text-xs font-bold text-indigo-600 mt-1">{item.totalPrice || item.price}€</p>
               </div>
-              <button onClick={() => onRemove(item.resourceId)} className="p-1 text-gray-300 hover:text-rose-500 transition flex-shrink-0">
-                <X size={13} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
+        {/* Footer — auth check happens here, NOT on add-to-cart */}
         {cartItems.length > 0 && (
           <div className="px-4 py-4 border-t border-gray-100 space-y-3">
             <div className="flex items-center justify-between text-sm font-bold text-gray-900">
               <span>Total estimé</span>
-              <span className="text-indigo-600">{total}€</span>
+              <span className="text-indigo-600">{total}DT</span>
             </div>
             <button
-              onClick={onSendClick}
+              onClick={onNavigateWithAuth}
               className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 transition"
               style={{ background: "linear-gradient(135deg,#4338CA,#6366F1)" }}
             >
-              <Send size={14} /> Envoyer les demandes
+              <Send size={14} /> Continuer mes réservations
             </button>
             <p className="text-[10px] text-gray-400 text-center">Connexion requise pour envoyer</p>
           </div>
@@ -362,10 +322,8 @@ function CategoryDropdown({ value, onChange }) {
   return (
     <div ref={ref} className="relative">
       <label className="block text-sm font-medium text-slate-700 mb-2">Catégorie</label>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex justify-between items-center px-4 py-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-left text-sm hover:border-blue-300 transition-colors"
-      >
+      <button onClick={() => setOpen((o) => !o)}
+        className="w-full flex justify-between items-center px-4 py-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-left text-sm hover:border-blue-300 transition-colors">
         <span className={value ? "text-blue-600 font-medium" : "text-gray-500"}>{getLabel()}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
       </button>
@@ -380,10 +338,8 @@ function CategoryDropdown({ value, onChange }) {
             <div key={group.value} className="relative"
               onMouseEnter={() => setHoveredGroup(group.value)}
               onMouseLeave={() => setHoveredGroup(null)}>
-              <div
-                className="px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 cursor-pointer flex justify-between items-center transition-colors"
-                onClick={() => { if (!group.subCategories) { onChange(group.value); setOpen(false); } }}
-              >
+              <div className="px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 cursor-pointer flex justify-between items-center transition-colors"
+                onClick={() => { if (!group.subCategories) { onChange(group.value); setOpen(false); } }}>
                 <span>{group.label}</span>
                 {group.subCategories && <ChevronRightIcon className="w-4 h-4 text-gray-400" />}
               </div>
@@ -424,10 +380,8 @@ function SortDropdown({ value, onChange }) {
   return (
     <div ref={ref} className="relative">
       <label className="block text-sm font-medium text-slate-700 mb-2">Trier par</label>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex justify-between items-center px-4 py-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-left text-sm hover:border-blue-300 transition-colors"
-      >
+      <button onClick={() => setOpen((o) => !o)}
+        className="w-full flex justify-between items-center px-4 py-3 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none text-left text-sm hover:border-blue-300 transition-colors">
         <div className="flex items-center gap-2">
           <ArrowUpDown className="w-4 h-4 text-gray-400" />
           <span className={value ? "text-blue-600 font-medium" : "text-gray-500"}>{currentLabel}</span>
@@ -456,7 +410,7 @@ function SortDropdown({ value, onChange }) {
 ───────────────────────────────────────────────── */
 function RecommendationsCarousel({ resources, loading, title, toast }) {
   const scrollRef = useRef(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollLeft, setCanScrollLeft]   = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
   const checkScroll = () => {
@@ -500,7 +454,7 @@ function RecommendationsCarousel({ resources, loading, title, toast }) {
         </div>
       ) : resources.length > 0 ? (
         <div className="relative">
-          {canScrollLeft && <div className="pointer-events-none absolute left-0 top-0 h-full w-20 z-10 bg-gradient-to-r from-purple-50/90 to-transparent" />}
+          {canScrollLeft  && <div className="pointer-events-none absolute left-0 top-0 h-full w-20 z-10 bg-gradient-to-r from-purple-50/90 to-transparent" />}
           {canScrollRight && <div className="pointer-events-none absolute right-0 top-0 h-full w-20 z-10 bg-gradient-to-l from-purple-50/90 to-transparent" />}
           <button onClick={() => scroll(-1)} disabled={!canScrollLeft}
             className={`absolute left-0 top-1/2 z-20 w-14 h-14 rounded-full bg-white shadow-xl flex items-center justify-center transition-all duration-200
@@ -533,8 +487,7 @@ function RecommendationsCarousel({ resources, loading, title, toast }) {
           {Array.from({ length: Math.min(resources.length, 12) }).map((_, i) => (
             <button key={i}
               onClick={() => scrollRef.current?.scrollTo({ left: i * 340, behavior: "smooth" })}
-              className="w-1.5 h-1.5 rounded-full transition-all bg-purple-300 hover:bg-purple-500"
-            />
+              className="w-1.5 h-1.5 rounded-full transition-all bg-purple-300 hover:bg-purple-500" />
           ))}
         </div>
       )}
@@ -546,79 +499,89 @@ function RecommendationsCarousel({ resources, loading, title, toast }) {
   PAGE PRINCIPALE
 ───────────────────────────────────────────────── */
 export default function OrganizerPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const eventId = location.state?.eventId;
+  const navigate  = useNavigate();
+  const location  = useLocation();
+  const eventId   = location.state?.eventId;
 
   const { toasts, remove, toast } = useToast();
 
-  const [resources, setResources] = useState([]);
-  const [filteredResources, setFilteredResources] = useState([]);
-  const [selectedResource, setSelectedResource] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSubCategory, setSelectedSubCategory] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [sortBy, setSortBy] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [loadingRecs, setLoadingRecs] = useState(true);
-  const [likedResources, setLikedResources] = useState([]);
+  /* ── current user & role ── */
+  const [currentUser, setCurrentUser] = useState(() => JSON.parse(localStorage.getItem("user") || "null"));
+  const isPrestataire = currentUser?.role === "prestataire";
+
+  useEffect(() => {
+    const sync = () => setCurrentUser(JSON.parse(localStorage.getItem("user") || "null"));
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, []);
+
+  const [resources,            setResources]            = useState([]);
+  const [filteredResources,    setFilteredResources]    = useState([]);
+  const [selectedResource,     setSelectedResource]     = useState(null);
+  const [searchTerm,           setSearchTerm]           = useState("");
+  const [selectedSubCategory,  setSelectedSubCategory]  = useState("");
+  const [maxPrice,             setMaxPrice]             = useState("");
+  const [sortBy,               setSortBy]               = useState("");
+  const [loading,              setLoading]              = useState(true);
+  const [loadingRecs,          setLoadingRecs]          = useState(true);
+  const [likedResources,       setLikedResources]       = useState([]);
   const [recommendedResources, setRecommendedResources] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage,          setCurrentPage]          = useState(1);
   const itemsPerPage = 12;
 
-  const [cartItems, setCartItems] = useState(() => readCart());
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  /* ── cart — hidden entirely for prestataire ── */
+  const [cartItems,    setCartItems]    = useState(() => isPrestataire ? [] : readCart());
+  const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [authModalOpen,setAuthModalOpen]= useState(false);
 
-  const user = JSON.parse(localStorage.getItem("user") || "null");
-  const userId = user?._id || user?.id || null;
+  const userId = currentUser?._id || currentUser?.id || null;
 
-  /* ── Sync cart ── */
+  /* ── Sync cart (only if not prestataire) ── */
   useEffect(() => {
+    if (isPrestataire) return;
     const sync = () => {
       const fresh = readCart();
       setCartItems((prev) => JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh);
     };
     const interval = setInterval(sync, 600);
     window.addEventListener("storage", sync);
-    window.addEventListener("focus", sync);
-    return () => { clearInterval(interval); window.removeEventListener("storage", sync); window.removeEventListener("focus", sync); };
-  }, []);
+    window.addEventListener("focus",   sync);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus",   sync);
+    };
+  }, [isPrestataire]);
 
-  /* ── Likes ── */
-  useEffect(() => {
-    const u = JSON.parse(localStorage.getItem("user") || "null");
-    setLikedResources((u?.adore || []).map(id => toStr(id)));
-  }, []);
+  /* ── Cart key helper (composite: resourceId + date + slots) ── */
+  const getItemKey = (item) => item.cartKey || item.resourceId;
 
-  const handleLikeUpdate = (resourceId, liked) => {
-    const strId = toStr(resourceId);
-    setLikedResources(prev => liked ? [...prev, strId] : prev.filter(id => id !== strId));
-    toast.success(
-      liked ? ` ajouté aux favoris` : `Retiré des favoris`,
-      liked ? "Ajouté ❤️" : "Retiré",
-      2500
-    );
-  };
-
-  /* ── Cart actions ── */
-  const removeFromCart = (resourceId) => {
-    const item = cartItems.find(i => i.resourceId === resourceId);
-    const updated = cartItems.filter((i) => i.resourceId !== resourceId);
+  /* ── Remove from cart ── */
+  const removeFromCart = (key) => {
+    const item    = cartItems.find(i => getItemKey(i) === key);
+    const updated = cartItems.filter(i => getItemKey(i) !== key);
     localStorage.setItem("reservationCart", JSON.stringify(updated));
     setCartItems(updated);
-    toast.warning(
-      `"${item?.resourceName || "Ressource"}" retiré du panier`,
-      "Article supprimé",
-      2800
-    );
+    toast.warning(`"${item?.resourceName || "Ressource"}" retiré du panier`, "Article supprimé", 2800);
   };
 
-  const cartTotal = cartItems.reduce((s, i) => s + (i.totalPrice || i.price), 0);
+  /* ── Update quantity (products only) ── */
+  const updateQuantity = (key, newQty) => {
+    if (newQty < 1) return;
+    const updated = cartItems.map(i => {
+      if (getItemKey(i) !== key) return i;
+      const qty = Math.min(newQty, i.stock || 999);
+      return { ...i, quantity: qty };
+    });
+    localStorage.setItem("reservationCart", JSON.stringify(updated));
+    setCartItems(updated);
+  };
 
-  const handleSendClick = () => {
-    const tok = localStorage.getItem("token");
-    if (!tok) {
+  /* ── "Continuer mes réservations" — auth check here only ── */
+  const handleNavigateWithAuth = () => {
+    const token = localStorage.getItem("token");
+    const user  = JSON.parse(localStorage.getItem("user") || "null");
+    if (!token || !user) {
       toast.info("Connectez-vous pour envoyer vos demandes", "Connexion requise");
       setAuthModalOpen(true);
       return;
@@ -633,6 +596,20 @@ export default function OrganizerPage() {
     setSidebarOpen(false);
     toast.success("Vous êtes connecté !", "Bienvenue 👋", 3000);
     setTimeout(() => navigate("/mes-reservations"), 800);
+  };
+
+  const cartTotal = cartItems.reduce((s, i) => s + (i.totalPrice || i.price) * (i.quantity || 1), 0);
+
+  /* ── Likes ── */
+  useEffect(() => {
+    const u = JSON.parse(localStorage.getItem("user") || "null");
+    setLikedResources((u?.adore || []).map(id => toStr(id)));
+  }, []);
+
+  const handleLikeUpdate = (resourceId, liked) => {
+    const strId = toStr(resourceId);
+    setLikedResources(prev => liked ? [...prev, strId] : prev.filter(id => id !== strId));
+    toast.success(liked ? "Ajouté aux favoris" : "Retiré des favoris", liked ? "Ajouté ❤️" : "Retiré", 2500);
   };
 
   /* ── Recommandations générales ── */
@@ -673,7 +650,7 @@ export default function OrganizerPage() {
         });
         if (!r.ok) throw new Error();
         const result = await r.json();
-        const data = result?.data;
+        const data   = result?.data;
         setRecommendedResources(Array.isArray(data) ? (typeof data.flat === "function" ? data.flat() : data) : []);
       } catch {
         setRecommendedResources([]);
@@ -693,7 +670,6 @@ export default function OrganizerPage() {
         if (!r.ok) throw new Error();
         const data = await r.json();
         setResources(data);
-
       } catch {
         toast.error("Impossible de charger les ressources. Vérifiez votre connexion.", "Erreur de chargement");
       } finally {
@@ -717,25 +693,22 @@ export default function OrganizerPage() {
     if (selectedSubCategory) f = f.filter((r) => r.category === selectedSubCategory);
     if (maxPrice) f = f.filter((r) => r.price <= parseFloat(maxPrice));
     switch (sortBy) {
-      case "price_asc": f.sort((a, b) => (a.price || 0) - (b.price || 0)); break;
-      case "price_desc": f.sort((a, b) => (b.price || 0) - (a.price || 0)); break;
-      case "name_asc": f.sort((a, b) => (a.name || "").localeCompare(b.name || "")); break;
-      case "name_desc": f.sort((a, b) => (b.name || "").localeCompare(a.name || "")); break;
-      case "date_desc": f.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)); break;
-      case "date_asc": f.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)); break;
+      case "price_asc":  f.sort((a, b) => (a.price || 0) - (b.price || 0));                              break;
+      case "price_desc": f.sort((a, b) => (b.price || 0) - (a.price || 0));                              break;
+      case "name_asc":   f.sort((a, b) => (a.name || "").localeCompare(b.name || ""));                   break;
+      case "name_desc":  f.sort((a, b) => (b.name || "").localeCompare(a.name || ""));                   break;
+      case "date_desc":  f.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));      break;
+      case "date_asc":   f.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));      break;
       default: break;
     }
     setFilteredResources(f);
   }, [resources, searchTerm, selectedSubCategory, maxPrice, sortBy]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-
-  }, [searchTerm, selectedSubCategory, maxPrice, sortBy]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, selectedSubCategory, maxPrice, sortBy]);
 
   /* ── Pagination ── */
-  const totalPages = Math.ceil(filteredResources.length / itemsPerPage);
-  const currentResources = filteredResources.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages        = Math.ceil(filteredResources.length / itemsPerPage);
+  const currentResources  = filteredResources.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const goToPage = (p) => {
     if (p >= 1 && p <= totalPages) {
@@ -746,8 +719,8 @@ export default function OrganizerPage() {
 
   const getPageNums = () =>
     Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-      if (totalPages <= 5) return i + 1;
-      if (currentPage <= 3) return i + 1;
+      if (totalPages <= 5)          return i + 1;
+      if (currentPage <= 3)         return i + 1;
       if (currentPage >= totalPages - 2) return totalPages - 4 + i;
       return currentPage - 2 + i;
     });
@@ -780,30 +753,43 @@ export default function OrganizerPage() {
   /* ── Banner ── */
   const getBannerContent = () => {
     if (eventId) return { title: "🎯 Ressources pour votre événement", subtitle: "Sélection personnalisée selon les caractéristiques de votre événement", gradient: "from-purple-600 to-pink-600" };
-    if (userId) return { title: "Bienvenue, nous sommes toujours là pour vous !", subtitle: "Vos recommandations personnalisées sont prêtes selon vos préférences", gradient: "from-blue-600 to-purple-600" };
+    if (userId)  return { title: "Bienvenue, nous sommes toujours là pour vous !", subtitle: "Vos recommandations personnalisées sont prêtes selon vos préférences", gradient: "from-blue-600 to-purple-600" };
     return { title: "Organisez l'événement inoubliable", subtitle: "Des centaines de ressources à portée de main, filtrées selon vos besoins", gradient: "from-blue-600 to-purple-600" };
   };
 
   const getRecsTitle = () => {
     if (eventId) return "🎯 Ressources pour votre événement";
-    if (userId) return "Nous sommes toujours là pour vous";
+    if (userId)  return "Nous sommes toujours là pour vous";
     return "Les plus populaires";
   };
 
   const banner = getBannerContent();
 
-  /* ─────────────────────────────────────────────────
-    RENDER
-  ───────────────────────────────────────────────── */
+  /* ═══════════════════════════════════════════════ RENDER ════ */
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <Navbar />
 
-      {/* ✅ Toast container */}
       <ToastContainer toasts={toasts} onRemove={remove} />
 
-      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} pendingItem={null} onAuthSuccess={handleAuthSuccess} />
-      <CartSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} cartItems={cartItems} onRemove={removeFromCart} onSendClick={handleSendClick} />
+      {/* Auth modal — only shown when clicking "Continuer" in sidebar */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
+
+      {/* Cart sidebar — hidden entirely for prestataire */}
+      {!isPrestataire && (
+        <CartSidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          cartItems={cartItems}
+          onRemove={removeFromCart}
+          onUpdateQuantity={updateQuantity}
+          onNavigateWithAuth={handleNavigateWithAuth}
+        />
+      )}
 
       <div className="pt-28 pb-10 px-4 max-w-7xl mx-auto">
 
@@ -829,22 +815,26 @@ export default function OrganizerPage() {
               <Filter className="w-5 h-5 text-blue-600" />
               <h2 className="text-xl font-semibold text-slate-800">Recherche & Filtres</h2>
             </div>
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:shadow-sm transition-all text-sm font-medium text-gray-800"
-            >
-              <ShoppingCart className="h-4 w-4 text-indigo-600" />
-              <span>Panier</span>
-              {cartItems.length > 0 ? (
-                <>
-                  <span className="bg-indigo-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full leading-none">{cartItems.length}</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-indigo-600 font-bold text-sm">{cartTotal}€</span>
-                </>
-              ) : (
-                <span className="text-gray-400 text-xs">vide</span>
-              )}
-            </button>
+
+            {/* Cart button — hidden for prestataire */}
+            {!isPrestataire && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:shadow-sm transition-all text-sm font-medium text-gray-800"
+              >
+                <ShoppingCart className="h-4 w-4 text-indigo-600" />
+                <span>Panier</span>
+                {cartItems.length > 0 ? (
+                  <>
+                    <span className="bg-indigo-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full leading-none">{cartItems.length}</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="text-indigo-600 font-bold text-sm">{cartTotal}DT</span>
+                  </>
+                ) : (
+                  <span className="text-gray-400 text-xs">vide</span>
+                )}
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
@@ -852,23 +842,17 @@ export default function OrganizerPage() {
               <label className="block text-sm font-medium text-slate-700 mb-2">Rechercher une ressource</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text" value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Nom, lieu, prestataire..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm hover:border-blue-300 transition-colors"
-                />
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm hover:border-blue-300 transition-colors" />
               </div>
             </div>
             <div><CategoryDropdown value={selectedSubCategory} onChange={setSelectedSubCategory} /></div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">Budget max (DT)</label>
-              <input
-                type="number" value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
+              <input type="number" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
                 min="0" placeholder="Ex: 500"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm hover:border-blue-300 transition-colors"
-              />
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm hover:border-blue-300 transition-colors" />
             </div>
             <div><SortDropdown value={sortBy} onChange={setSortBy} /></div>
           </div>
@@ -876,12 +860,8 @@ export default function OrganizerPage() {
           {(searchTerm || selectedSubCategory || maxPrice || sortBy) && (
             <div className="flex justify-end mt-4">
               <button
-                onClick={() => {
-                  setSearchTerm(""); setSelectedSubCategory(""); setMaxPrice(""); setSortBy("");
-
-                }}
-                className="px-4 py-2 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors"
-              >
+                onClick={() => { setSearchTerm(""); setSelectedSubCategory(""); setMaxPrice(""); setSortBy(""); }}
+                className="px-4 py-2 rounded-lg border border-red-200 text-red-500 text-sm font-medium hover:bg-red-50 transition-colors">
                 Réinitialiser les filtres
               </button>
             </div>
