@@ -7,15 +7,17 @@ import {
   CalendarRange, Star, MessageCircle, ThumbsUp, Send, Map,
   User, Clock3, CalendarClock, Check, AlertCircle, Info,
   Edit3, Trash2, Flag, Zap, Ruler, Palette, Weight, Tag,
-  Building, ShoppingCart, Package, ChevronDown
+  Building, ShoppingCart, Package, ChevronDown, Plus, Minus
 } from "lucide-react";
 import AuthModal from "../components/AuthModal";
 
 /* ─────────────────────────────────────────────────
-   MINI CART SIDEBAR (popup droite)
+   MINI CART SIDEBAR
+   - Quantity controls for products
+   - Auth modal triggered only on "Continuer mes réservations"
 ───────────────────────────────────────────────── */
-function CartSidebar({ isOpen, onClose, cartItems, onRemove, onNavigate }) {
-  const total = cartItems.reduce((s, i) => s + (i.totalPrice || i.price), 0);
+function CartSidebar({ isOpen, onClose, cartItems, onRemove, onUpdateQuantity, onNavigateWithAuth }) {
+  const total = cartItems.reduce((s, i) => s + (i.totalPrice || i.price) * (i.quantity || 1), 0);
 
   return (
     <>
@@ -25,7 +27,7 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onNavigate }) {
       <div
         className="fixed top-0 right-0 h-full z-50 flex flex-col shadow-2xl transition-all duration-300"
         style={{
-          width: 340,
+          width: 360,
           background: "#fff",
           transform: isOpen ? "translateX(0)" : "translateX(100%)",
           borderLeft: "0.5px solid #e5e7eb",
@@ -52,33 +54,66 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onNavigate }) {
               <ShoppingCart size={36} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">Votre panier est vide</p>
             </div>
-          ) : cartItems.map((item) => (
-            <div key={item.resourceId}
-              className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={item.type === "product"
-                      ? { background: "#DCFCE7", color: "#166534" }
-                      : { background: "#EDE9FE", color: "#5B21B6" }}>
-                    {item.type === "product" ? "Produit" : "Service"}
-                  </span>
-                  <span className="text-xs font-semibold text-gray-800 truncate">{item.resourceName}</span>
+          ) : cartItems.map((item) => {
+            const itemTotal = (item.totalPrice || item.price) * (item.quantity || 1);
+            const isProduct = item.type === "product";
+            return (
+              <div key={item.cartKey}
+                className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                        style={isProduct
+                          ? { background: "#DCFCE7", color: "#166534" }
+                          : { background: "#EDE9FE", color: "#5B21B6" }}>
+                        {isProduct ? "Produit" : "Service"}
+                      </span>
+                      <span className="text-xs font-semibold text-gray-800 truncate">{item.resourceName}</span>
+                    </div>
+                    {item.selectedDate && (
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(item.selectedDate).toLocaleDateString("fr-FR")}
+                        {item.selectedTimes?.length > 0 && ` · ${item.selectedTimes.length} créneau(x)`}
+                      </p>
+                    )}
+                    <p className="text-xs font-bold text-indigo-600 mt-1">{itemTotal}DT</p>
+                  </div>
+                  <button onClick={() => onRemove(item.cartKey)}
+                    className="p-1 text-gray-300 hover:text-rose-500 transition flex-shrink-0">
+                    <X size={13} />
+                  </button>
                 </div>
-                {item.selectedDate && (
-                  <p className="text-[10px] text-gray-400">
-                    {new Date(item.selectedDate).toLocaleDateString("fr-FR")}
-                    {item.selectedTimes?.length > 0 && ` · ${item.selectedTimes.length} créneau(x)`}
-                  </p>
+
+                {/* Quantity controls — products only */}
+                {isProduct && (
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                    <span className="text-[11px] text-gray-500">Quantité</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => onUpdateQuantity(item.cartKey, (item.quantity || 1) - 1)}
+                        disabled={(item.quantity || 1) <= 1}
+                        className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      >
+                        <Minus size={11} />
+                      </button>
+                      <span className="text-sm font-bold text-gray-800 w-5 text-center">{item.quantity || 1}</span>
+                      <button
+                        onClick={() => onUpdateQuantity(item.cartKey, (item.quantity || 1) + 1)}
+                        disabled={(item.quantity || 1) >= (item.stock || 999)}
+                        className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                      >
+                        <Plus size={11} />
+                      </button>
+                    </div>
+                    {item.stock && (
+                      <span className="text-[10px] text-gray-400">{item.stock} dispo</span>
+                    )}
+                  </div>
                 )}
-                <p className="text-xs font-bold text-indigo-600 mt-1">{item.totalPrice || item.price}DT</p>
               </div>
-              <button onClick={() => onRemove(item.resourceId)}
-                className="p-1 text-gray-300 hover:text-rose-500 transition flex-shrink-0">
-                <X size={13} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {cartItems.length > 0 && (
@@ -87,11 +122,12 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onNavigate }) {
               <span>Total estimé</span>
               <span className="text-indigo-600">{total}DT</span>
             </div>
+            {/* ← Auth check happens here, not on "Ajouter au panier" */}
             <button
-              onClick={onNavigate}
+              onClick={onNavigateWithAuth}
               className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 transition"
               style={{ background: "linear-gradient(135deg,#4338CA,#6366F1)" }}>
-              <Send size={14} /> Continuer mes réservations 
+              <Send size={14} /> Continuer mes réservations
             </button>
             <p className="text-[10px] text-gray-400 text-center">
               Connexion requise pour envoyer
@@ -119,9 +155,8 @@ export default function ResourceDetailsPage() {
   const [showLightbox, setShowLightbox] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // Auth Modal states
+  // Auth Modal — only triggered from sidebar "Continuer" button
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [pendingCartItem, setPendingCartItem] = useState(null);
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -155,7 +190,6 @@ export default function ResourceDetailsPage() {
     loadCartFromStorage();
   }, []);
 
-  // Écouter les changements de connexion
   useEffect(() => {
     const handleStorageChange = () => {
       const user = JSON.parse(localStorage.getItem("user"));
@@ -165,8 +199,6 @@ export default function ResourceDetailsPage() {
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
-
-  const isPrestataire = currentUser?.role === "prestataire";
 
   const loadCartFromStorage = () => {
     const raw = localStorage.getItem("reservationCart");
@@ -178,8 +210,19 @@ export default function ResourceDetailsPage() {
     setCartItems(items);
   };
 
-  const removeFromCart = (resourceId) => {
-    saveCart(cartItems.filter(i => i.resourceId !== resourceId));
+  const removeFromCart = (cartKey) => {
+    saveCart(cartItems.filter(i => i.cartKey !== cartKey));
+  };
+
+  /* ── Update quantity for products ── */
+  const updateQuantity = (cartKey, newQty) => {
+    if (newQty < 1) return;
+    const updated = cartItems.map(i => {
+      if (i.cartKey !== cartKey) return i;
+      const qty = Math.min(newQty, i.stock || 999);
+      return { ...i, quantity: qty };
+    });
+    saveCart(updated);
   };
 
   useEffect(() => {
@@ -213,54 +256,33 @@ export default function ResourceDetailsPage() {
     fetchData();
   }, [id]);
 
-  /* ── FONCTION POUR AJOUTER AU PANIER (RÉUTILISABLE) ── */
-  const performAddToCart = (cartItemToAdd) => {
-    const existing = JSON.parse(localStorage.getItem("reservationCart") || "[]");
-    if (existing.some(i => i.resourceId === cartItemToAdd.resourceId)) {
-      setSidebarOpen(true);
-      return false;
-    }
-    const updated = [...existing, cartItemToAdd];
-    saveCart(updated);
-    setAddedToCart(true);
-    setSidebarOpen(true);
-    setTimeout(() => setAddedToCart(false), 2500);
-    return true;
+  /* ── Cart key: unique per resource + date combo ── */
+  const buildCartKey = (resourceId, selectedDate, selectedTimes) => {
+    const dateStr = selectedDate ? new Date(selectedDate).toISOString().split("T")[0] : "nodate";
+    const timesStr = selectedTimes?.length > 0
+      ? selectedTimes.map(t => t.display).join("|")
+      : "notimes";
+    return `${resourceId}__${dateStr}__${timesStr}`;
   };
 
-  /* ── AJOUTER AU PANIER AVEC VÉRIFICATION CONNEXION ── */
+  /* ── ADD TO CART — no auth check here anymore ── */
   const addToCart = () => {
-    // Vérifier si l'utilisateur est connecté
-    const token = localStorage.getItem("token");
-    const user = JSON.parse(localStorage.getItem("user") || "null");
+    const cartKey = buildCartKey(
+      resource._id,
+      selectedDate,
+      selectedTimes
+    );
 
-    if (!token || !user) {
-      // Stocker l'item pour après connexion
-      const cartItem = {
-        resourceId: resource._id,
-        resourceName: resource.name,
-        price: resource.price,
-        type: resource.type,
-        category: resource.category,
-        quantity: 1,
-        totalPrice: resource.type === "service"
-          ? calculateTotalPrice() || resource.price
-          : resource.price,
-        stock: resource.stock ?? 999,
-        selectedTimes: selectedTimes.map(s => ({
-          display: s.display,
-          start: s.start.toISOString(),
-          end: s.end.toISOString(),
-          price: s.price,
-        })),
-        selectedDate: selectedDate ? selectedDate.toISOString() : null,
-      };
-      setPendingCartItem(cartItem);
-      setAuthModalOpen(true);
+    const existing = JSON.parse(localStorage.getItem("reservationCart") || "[]");
+
+    // Check for exact same cartKey (same resource + same date + same slots)
+    if (existing.some(i => i.cartKey === cartKey)) {
+      setSidebarOpen(true);
       return;
     }
 
     const cartItem = {
+      cartKey,
       resourceId: resource._id,
       resourceName: resource.name,
       price: resource.price,
@@ -280,20 +302,32 @@ export default function ResourceDetailsPage() {
       selectedDate: selectedDate ? selectedDate.toISOString() : null,
     };
 
-    performAddToCart(cartItem);
+    const updated = [...existing, cartItem];
+    saveCart(updated);
+    setAddedToCart(true);
+    setSidebarOpen(true);
+    setTimeout(() => setAddedToCart(false), 2500);
   };
-  
+
+  /* ── "Continuer mes réservations" — auth check here ── */
+  const handleNavigateWithAuth = () => {
+    const token = localStorage.getItem("token");
+    const user = JSON.parse(localStorage.getItem("user") || "null");
+
+    if (!token || !user) {
+      setAuthModalOpen(true);
+      return;
+    }
+    setSidebarOpen(false);
+    navigate("/mes-reservations");
+  };
 
   /* ── AUTH SUCCESS ── */
   const handleAuthSuccess = (token, user) => {
     setAuthModalOpen(false);
     setCurrentUser(user);
-
-    // Si un item était en attente, l'ajouter au panier maintenant
-    if (pendingCartItem) {
-      performAddToCart(pendingCartItem);
-      setPendingCartItem(null);
-    }
+    setSidebarOpen(false);
+    navigate("/mes-reservations");
   };
 
   /* ── disponibilités ── */
@@ -479,10 +513,17 @@ export default function ResourceDetailsPage() {
     return () => { document.removeEventListener("keydown", handleKey); document.body.style.overflow = "unset"; };
   }, [showLightbox, currentImageIndex]);
 
-  const cartTotal = cartItems.reduce((s, i) => s + (i.totalPrice || i.price), 0);
+  const cartTotal = cartItems.reduce((s, i) => s + (i.totalPrice || i.price) * (i.quantity || 1), 0);
   const isService = resource?.type === "service";
   const canAddToCart = (selectedTimes.length > 0 || (startDate && endDate && isRangeValid()));
-  const alreadyInCart = cartItems.some(i => i.resourceId === id);
+
+  // Check if this specific date+time combo is already in cart (not just the resource)
+  const currentCartKey = resource
+    ? buildCartKey(resource._id, selectedDate, selectedTimes)
+    : null;
+  const alreadyInCart = currentCartKey
+    ? cartItems.some(i => i.cartKey === currentCartKey)
+    : false;
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -507,27 +548,21 @@ export default function ResourceDetailsPage() {
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         cartItems={cartItems}
-        onRemove={(id) => { removeFromCart(id); }}
-        onNavigate={() => { setSidebarOpen(false); navigate("/mes-reservations"); }}
+        onRemove={removeFromCart}
+        onUpdateQuantity={updateQuantity}
+        onNavigateWithAuth={handleNavigateWithAuth}
       />
 
-      {/* Auth Modal */}
+      {/* Auth Modal — triggered only from sidebar "Continuer" button */}
       <AuthModal
         isOpen={authModalOpen}
-        onClose={() => {
-          setAuthModalOpen(false);
-          setPendingCartItem(null);
-        }}
-        pendingItem={pendingCartItem ? {
-          resourceName: pendingCartItem.resourceName,
-          type: pendingCartItem.type,
-        } : null}
+        onClose={() => setAuthModalOpen(false)}
         onAuthSuccess={handleAuthSuccess}
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
 
-        {/* ══ HEADER avec retour + bouton panier intégré ══ */}
+        {/* ══ HEADER ══ */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => navigate(-1)}
@@ -537,7 +572,6 @@ export default function ResourceDetailsPage() {
             Retour
           </button>
 
-          {/* Bouton panier — visible seulement si items dans le panier */}
           {cartItems.length > 0 && (
             <button
               onClick={() => setSidebarOpen(true)}
@@ -778,7 +812,7 @@ export default function ResourceDetailsPage() {
             {/* Localisation */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
               <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2 mb-4"><Map className="h-5 w-5" />Localisation</h2>
-              <div className="flex items-start gap-3 text-gray-600 mb-4"><MapPin className="h-5 w-5 text-gray-400 flex-shrink-0" /><div><p className="font-medium text-gray-900">Adresse</p><p>  {resource.locationname}</p></div></div>
+              <div className="flex items-start gap-3 text-gray-600 mb-4"><MapPin className="h-5 w-5 text-gray-400 flex-shrink-0" /><div><p className="font-medium text-gray-900">Adresse</p><p>{resource.locationname}</p></div></div>
               <div className="relative h-[300px] rounded-xl overflow-hidden">
                 <iframe width="100%" height="100%" style={{ border: 0 }} loading="lazy" allowFullScreen
                   src={`https://www.google.com/maps?q=${resource.locationname}&output=embed`} />
@@ -930,18 +964,15 @@ export default function ResourceDetailsPage() {
                 {resource.capacity && <div className="flex justify-between"><span className="text-gray-500">Capacité</span><span className="font-medium flex items-center gap-1"><Users className="h-4 w-4" />{resource.capacity} personnes</span></div>}
               </div>
 
-              {/* Conditions */}
-
-
-              {/* ════ BOUTON AJOUTER AU PANIER ════ */}
+              {/* ════ BOUTON AJOUTER AU PANIER — no auth check ════ */}
               {alreadyInCart ? (
-                <div className="bg-indigo-50 p-4 rounded-xl text-center">
+                <div className="bg-indigo-50 p-4 rounded-xl text-center mt-4">
                   <CheckCircle2 className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
                   <p className="font-medium text-indigo-800 text-sm">Déjà dans votre panier</p>
                   <button onClick={() => setSidebarOpen(true)} className="mt-2 text-xs underline text-indigo-600">Voir le panier →</button>
                 </div>
               ) : addedToCart ? (
-                <div className="bg-green-50 p-4 rounded-xl text-center">
+                <div className="bg-green-50 p-4 rounded-xl text-center mt-4">
                   <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto mb-2" />
                   <p className="font-medium text-green-800 text-sm">Ajouté au panier !</p>
                   <button onClick={() => setSidebarOpen(true)} className="mt-2 text-xs underline text-green-600">Voir le panier →</button>
@@ -951,7 +982,7 @@ export default function ResourceDetailsPage() {
                   <button
                     onClick={addToCart}
                     disabled={!canAddToCart || currentUser?.role === "prestataire"}
-                    className={`w-full py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
+                    className={`w-full mt-4 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
                     ${(!canAddToCart || currentUser?.role === "prestataire")
                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                         : "bg-black text-white hover:bg-gray-800 hover:scale-[1.02] active:scale-[0.98]"}`}
@@ -981,52 +1012,48 @@ export default function ResourceDetailsPage() {
       </div>
 
       {/* Lightbox */}
-      {
-        showLightbox && (
-          <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center" onClick={() => setShowLightbox(false)}>
-            <button onClick={() => setShowLightbox(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full"><X className="h-8 w-8" /></button>
-            <div className="relative max-w-7xl mx-auto px-4" onClick={e => e.stopPropagation()}>
-              <img src={images[currentImageIndex]} alt="" className="max-h-[85vh] w-auto mx-auto rounded-lg shadow-2xl" />
-              {images.length > 1 && (<>
-                <button onClick={e => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-3 rounded-full"><ChevronLeft className="h-6 w-6" /></button>
-                <button onClick={e => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-3 rounded-full"><ChevronRight className="h-6 w-6" /></button>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-full text-sm">{currentImageIndex + 1} / {images.length}</div>
-              </>)}
-            </div>
+      {showLightbox && (
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center" onClick={() => setShowLightbox(false)}>
+          <button onClick={() => setShowLightbox(false)} className="absolute top-6 right-6 text-white/70 hover:text-white p-2 hover:bg-white/10 rounded-full"><X className="h-8 w-8" /></button>
+          <div className="relative max-w-7xl mx-auto px-4" onClick={e => e.stopPropagation()}>
+            <img src={images[currentImageIndex]} alt="" className="max-h-[85vh] w-auto mx-auto rounded-lg shadow-2xl" />
+            {images.length > 1 && (<>
+              <button onClick={e => { e.stopPropagation(); prevImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-3 rounded-full"><ChevronLeft className="h-6 w-6" /></button>
+              <button onClick={e => { e.stopPropagation(); nextImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/30 text-white p-3 rounded-full"><ChevronRight className="h-6 w-6" /></button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-full text-sm">{currentImageIndex + 1} / {images.length}</div>
+            </>)}
           </div>
-        )
-      }
+        </div>
+      )}
 
       {/* Conditions popup */}
-      {
-        showTermsPopup && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowTermsPopup(false)}>
-            <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                <h2 className="text-xl font-bold">Conditions Générales</h2>
-                <button onClick={() => setShowTermsPopup(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="h-5 w-5" /></button>
-              </div>
-              <div className="p-6 space-y-4 text-gray-700">
-                {[["1. Objet", "Les présentes conditions générales régissent l'utilisation de la plateforme de réservation."],
-                ["2. Réservation", "La réservation devient définitive après validation du prestataire."],
-                ["3. Annulation", "Les annulations plus de 48h avant donnent droit à un remboursement intégral."],
-                ["4. Utilisation", "L'utilisateur s'engage à utiliser la ressource conformément à sa destination."],
-                ["5. Responsabilité", "L'utilisateur est responsable de tout dommage causé pendant la réservation."],
-                ].map(([title, text]) => <div key={title}><p className="font-semibold text-gray-900 mb-1">{title}</p><p>{text}</p></div>)}
-                <p className="text-sm text-gray-500 mt-6">Dernière mise à jour : 29 mars 2026</p>
-              </div>
-              <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t flex justify-end">
-                <button onClick={() => setShowTermsPopup(false)} className="px-4 py-2 bg-black text-white rounded-lg">Fermer</button>
-              </div>
+      {showTermsPopup && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowTermsPopup(false)}>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Conditions Générales</h2>
+              <button onClick={() => setShowTermsPopup(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-6 space-y-4 text-gray-700">
+              {[["1. Objet", "Les présentes conditions générales régissent l'utilisation de la plateforme de réservation."],
+              ["2. Réservation", "La réservation devient définitive après validation du prestataire."],
+              ["3. Annulation", "Les annulations plus de 48h avant donnent droit à un remboursement intégral."],
+              ["4. Utilisation", "L'utilisateur s'engage à utiliser la ressource conformément à sa destination."],
+              ["5. Responsabilité", "L'utilisateur est responsable de tout dommage causé pendant la réservation."],
+              ].map(([title, text]) => <div key={title}><p className="font-semibold text-gray-900 mb-1">{title}</p><p>{text}</p></div>)}
+              <p className="text-sm text-gray-500 mt-6">Dernière mise à jour : 29 mars 2026</p>
+            </div>
+            <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t flex justify-end">
+              <button onClick={() => setShowTermsPopup(false)} className="px-4 py-2 bg-black text-white rounded-lg">Fermer</button>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
 
       <style>{`
         @keyframes fade-in { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
         .animate-fade-in { animation: fade-in .3s ease-out; }
       `}</style>
-    </div >
+    </div>
   );
 }
