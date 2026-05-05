@@ -781,7 +781,7 @@ export default function OrganizerDashboard() {
                                                             <StatusBadge status={event.status} />
                                                         </div>
                                                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleEditEvent(event); }} className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-medium hover:shadow-lg transition-all">
-                                                            <Edit2 size={12} /> Modifier
+                                                            <Edit2 size={12} /> Consulter et Modifier
                                                         </motion.button>
                                                     </motion.div>
                                                 );
