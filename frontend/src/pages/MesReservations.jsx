@@ -625,7 +625,7 @@ export default function MesReservations() {
           {cartItems.length > 0 && (
             <section className="mb-8">
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-black text-gray-800">Produits & services dans le panier</span>
+                <span className="text-sm font-black text-gray-800">Ressources sélectionnées</span>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
                   style={{ background: "#DCFCE7", color: "#166634" }}>
                   {totalCart} article{totalCart > 1 ? "s" : ""}
