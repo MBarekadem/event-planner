@@ -12,12 +12,13 @@ import {
 import AuthModal from "../components/AuthModal";
 
 /* ─────────────────────────────────────────────────
-   MINI CART SIDEBAR
-   - Quantity controls for products
-   - Auth modal triggered only on "Continuer mes réservations"
+   MINI CART SIDEBAR - MASQUÉ POUR PRESTATAIRE
 ───────────────────────────────────────────────── */
-function CartSidebar({ isOpen, onClose, cartItems, onRemove, onUpdateQuantity, onNavigateWithAuth }) {
+function CartSidebar({ isOpen, onClose, cartItems, onRemove, onUpdateQuantity, onNavigateWithAuth, isPrestataire }) {
   const total = cartItems.reduce((s, i) => s + (i.totalPrice || i.price) * (i.quantity || 1), 0);
+
+  // Ne pas afficher la sidebar si prestataire
+  if (isPrestataire) return null;
 
   return (
     <>
@@ -122,7 +123,6 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onUpdateQuantity, o
               <span>Total estimé</span>
               <span className="text-indigo-600">{total}DT</span>
             </div>
-            {/* ← Auth check happens here, not on "Ajouter au panier" */}
             <button
               onClick={onNavigateWithAuth}
               className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:opacity-90 transition"
@@ -154,6 +154,7 @@ export default function ResourceDetailsPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [isPrestataire, setIsPrestataire] = useState(false);
 
   // Auth Modal — only triggered from sidebar "Continuer" button
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -187,6 +188,7 @@ export default function ResourceDetailsPage() {
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user"));
     setCurrentUser(user);
+    setIsPrestataire(user?.role === "prestataire");
     loadCartFromStorage();
   }, []);
 
@@ -194,6 +196,7 @@ export default function ResourceDetailsPage() {
     const handleStorageChange = () => {
       const user = JSON.parse(localStorage.getItem("user"));
       setCurrentUser(user);
+      setIsPrestataire(user?.role === "prestataire");
       loadCartFromStorage();
     };
     window.addEventListener("storage", handleStorageChange);
@@ -265,8 +268,13 @@ export default function ResourceDetailsPage() {
     return `${resourceId}__${dateStr}__${timesStr}`;
   };
 
-  /* ── ADD TO CART — no auth check here anymore ── */
+  /* ── ADD TO CART — no auth check here anymore, but blocked for prestataire ── */
   const addToCart = () => {
+    // Bloquer l'ajout au panier pour les prestataires
+    if (isPrestataire) {
+      return;
+    }
+
     const cartKey = buildCartKey(
       resource._id,
       selectedDate,
@@ -326,6 +334,7 @@ export default function ResourceDetailsPage() {
   const handleAuthSuccess = (token, user) => {
     setAuthModalOpen(false);
     setCurrentUser(user);
+    setIsPrestataire(user?.role === "prestataire");
     setSidebarOpen(false);
     navigate("/mes-reservations");
   };
@@ -543,14 +552,15 @@ export default function ResourceDetailsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
 
-      {/* Cart Sidebar */}
+      {/* Cart Sidebar - Masquée pour prestataire */}
       <CartSidebar
-        isOpen={sidebarOpen}
+        isOpen={sidebarOpen && !isPrestataire}
         onClose={() => setSidebarOpen(false)}
         cartItems={cartItems}
         onRemove={removeFromCart}
         onUpdateQuantity={updateQuantity}
         onNavigateWithAuth={handleNavigateWithAuth}
+        isPrestataire={isPrestataire}
       />
 
       {/* Auth Modal — triggered only from sidebar "Continuer" button */}
@@ -572,7 +582,8 @@ export default function ResourceDetailsPage() {
             Retour
           </button>
 
-          {cartItems.length > 0 && (
+          {/* Bouton panier - Masqué pour prestataire */}
+          {!isPrestataire && cartItems.length > 0 && (
             <button
               onClick={() => setSidebarOpen(true)}
               className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:shadow-sm transition-all text-sm font-medium text-gray-800"
@@ -928,7 +939,7 @@ export default function ResourceDetailsPage() {
               </div>
             )}
 
-            {/* Carte réservation */}
+            {/* ════ CARTE RÉSERVATION - MODIFIÉ POUR PRESTATAIRE ════ */}
             <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-6 hover:shadow-xl transition-all">
               <div className="text-center pb-6 border-b border-gray-100">
                 <span className="text-4xl font-bold text-gray-900">{resource.price}DT</span>
@@ -964,8 +975,19 @@ export default function ResourceDetailsPage() {
                 {resource.capacity && <div className="flex justify-between"><span className="text-gray-500">Capacité</span><span className="font-medium flex items-center gap-1"><Users className="h-4 w-4" />{resource.capacity} personnes</span></div>}
               </div>
 
-              {/* ════ BOUTON AJOUTER AU PANIER — no auth check ════ */}
-              {alreadyInCart ? (
+              {/* ════ BOUTON AJOUTER AU PANIER — DÉSACTIVÉ POUR PRESTATAIRE ════ */}
+              {isPrestataire ? (
+                // Message pour prestataire - pas de panier
+                <div className="bg-amber-50 p-4 rounded-xl text-center mt-4 border border-amber-200">
+                  <AlertCircle className="h-8 w-8 text-amber-600 mx-auto mb-2" />
+                  <p className="font-medium text-amber-800 text-sm">
+                    Réservation réservée aux particuliers
+                  </p>
+                  <p className="text-xs text-amber-600 mt-1">
+                    Les prestataires ne peuvent pas réserver de ressources.
+                  </p>
+                </div>
+              ) : alreadyInCart ? (
                 <div className="bg-indigo-50 p-4 rounded-xl text-center mt-4">
                   <CheckCircle2 className="h-8 w-8 text-indigo-600 mx-auto mb-2" />
                   <p className="font-medium text-indigo-800 text-sm">Déjà dans votre panier</p>
@@ -981,31 +1003,26 @@ export default function ResourceDetailsPage() {
                 <>
                   <button
                     onClick={addToCart}
-                    disabled={!canAddToCart || currentUser?.role === "prestataire"}
+                    disabled={!canAddToCart}
                     className={`w-full mt-4 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2
-                    ${(!canAddToCart || currentUser?.role === "prestataire")
+                    ${!canAddToCart
                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                         : "bg-black text-white hover:bg-gray-800 hover:scale-[1.02] active:scale-[0.98]"}`}
                   >
                     <ShoppingCart className="h-5 w-5" />
-                    {currentUser?.role === "prestataire"
-                      ? "Action non autorisée pour un prestataire"
-                      : !selectedDate
-                        ? "Sélectionnez une date"
-                        : selectedTimes.length === 0 && !endDate
-                          ? "Choisissez des créneaux"
-                          : `Ajouter au panier${selectedTimes.length > 0 ? ` (${calculateTotalPrice()}DT)` : ""}`}
+                    {!selectedDate
+                      ? "Sélectionnez une date"
+                      : selectedTimes.length === 0 && !endDate
+                        ? "Choisissez des créneaux"
+                        : `Ajouter au panier${selectedTimes.length > 0 ? ` (${calculateTotalPrice()}DT)` : ""}`}
                   </button>
-                  {currentUser?.role === "prestataire" && (
-                    <p className="text-xs text-amber-600 text-center mt-2">
-                      ⚠️ Les prestataires ne peuvent pas réserver de ressources.
-                    </p>
-                  )}
                 </>
               )}
-              <p className="text-xs text-gray-400 text-center mt-3">
-                Connexion requise uniquement pour envoyer la demande
-              </p>
+              {!isPrestataire && (
+                <p className="text-xs text-gray-400 text-center mt-3">
+                  Connexion requise uniquement pour envoyer la demande
+                </p>
+              )}
             </div>
           </div>
         </div>
