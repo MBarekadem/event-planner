@@ -19,5 +19,3 @@ na3mlu taswitt
  
  changer le modal de signin dans la page de ressource ( il faut quel apparai ssi on clique sur envoyer demande )
  ajouter au panier une ressource multiple fois doit etre possible 
-
- prestataire losquil connecte il ne trouve pas la panier 
