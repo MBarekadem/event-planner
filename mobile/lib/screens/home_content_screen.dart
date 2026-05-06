@@ -1,25 +1,33 @@
 // lib/screens/home_content_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 class HomeContentScreen extends StatefulWidget {
-  const HomeContentScreen({super.key});
+  final Map<String, dynamic> user;
+  final String token;
+
+  const HomeContentScreen({
+    super.key,
+    required this.user,
+    required this.token,
+  });
 
   @override
   State<HomeContentScreen> createState() => _HomeContentScreenState();
 }
 
 class _HomeContentScreenState extends State<HomeContentScreen> {
-  Map<String, dynamic>? _userData;
-  String _userName = "Invité";
   List<dynamic> _resources = [];
   bool _isLoading = true;
   int _currentSlideIndex = 0;
   int _expandedFaqIndex = -1;
-  
+
+  // Getter directs depuis widget.user
+  String get _userName =>
+      widget.user['firstname'] ?? widget.user['name'] ?? "Invité";
+
   // Slideshow images
   final List<String> _slides = [
     'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800',
@@ -27,7 +35,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     'https://images.unsplash.com/photo-1505236858219-8359eb29e329?w=800',
     'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=800',
   ];
-  
+
   // Catégories d'événements
   final List<Map<String, dynamic>> _eventTypes = [
     {'title': 'Mariage', 'category': 'Célébration', 'color': 0xFFFF69B4},
@@ -37,27 +45,64 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     {'title': 'Réunion', 'category': 'Corporate', 'color': 0xFF9C27B0},
     {'title': 'Festival', 'category': 'Culturel', 'color': 0xFF00BCD4},
   ];
-  
+
   // Features
   final List<Map<String, dynamic>> _features = [
-    {'title': 'Réservation intelligente', 'description': 'Réservez vos salles, traiteurs et décorateurs en un clic', 'icon': Icons.smart_toy, 'color': 0xFF3B82F6},
-    {'title': 'Recommandation AI', 'description': 'Notre IA vous suggère les meilleures ressources selon votre budget', 'icon': Icons.auto_awesome, 'color': 0xFF9C27B0},
-    {'title': 'Agenda interactif', 'description': 'Visualisez les disponibilités en temps réel', 'icon': Icons.calendar_today, 'color': 0xFFFF9800},
-    {'title': 'Paiement sécurisé', 'description': 'Transactions 100% sécurisées', 'icon': Icons.security, 'color': 0xFF4CAF50},
+    {
+      'title': 'Réservation intelligente',
+      'description':
+          'Réservez vos salles, traiteurs et décorateurs en un clic',
+      'icon': Icons.smart_toy,
+      'color': 0xFF3B82F6,
+    },
+    {
+      'title': 'Recommandation AI',
+      'description':
+          'Notre IA vous suggère les meilleures ressources selon votre budget',
+      'icon': Icons.auto_awesome,
+      'color': 0xFF9C27B0,
+    },
+    {
+      'title': 'Agenda interactif',
+      'description': 'Visualisez les disponibilités en temps réel',
+      'icon': Icons.calendar_today,
+      'color': 0xFFFF9800,
+    },
+    {
+      'title': 'Paiement sécurisé',
+      'description': 'Transactions 100% sécurisées',
+      'icon': Icons.security,
+      'color': 0xFF4CAF50,
+    },
   ];
-  
+
   // FAQ
   final List<Map<String, String>> _faq = [
-    {'q': 'Comment créer un événement sur YallaEvents ?', 'a': 'C\'est simple ! Cliquez sur le bouton +, remplissez les informations de base, et notre système vous guidera pas à pas.'},
-    {'q': 'Les paiements sont-ils sécurisés ?', 'a': 'Absolument ! Nous utilisons un système de paiement crypté de niveau bancaire.'},
-    {'q': 'Comment devenir prestataire partenaire ?', 'a': 'Pour devenir prestataire, créez un compte et sélectionnez le rôle "prestataire". Notre équipe validera votre profil.'},
-    {'q': 'Puis-je modifier mon événement après l\'avoir créé ?', 'a': 'Oui, vous pouvez modifier les détails de votre événement à tout moment depuis votre tableau de bord.'},
+    {
+      'q': 'Comment créer un événement sur YallaEvents ?',
+      'a':
+          'C\'est simple ! Cliquez sur le bouton +, remplissez les informations de base, et notre système vous guidera pas à pas.',
+    },
+    {
+      'q': 'Les paiements sont-ils sécurisés ?',
+      'a':
+          'Absolument ! Nous utilisons un système de paiement crypté de niveau bancaire.',
+    },
+    {
+      'q': 'Comment devenir prestataire partenaire ?',
+      'a':
+          'Pour devenir prestataire, créez un compte et sélectionnez le rôle "prestataire". Notre équipe validera votre profil.',
+    },
+    {
+      'q': 'Puis-je modifier mon événement après l\'avoir créé ?',
+      'a':
+          'Oui, vous pouvez modifier les détails de votre événement à tout moment depuis votre tableau de bord.',
+    },
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
     _fetchResources();
     _startSlideshow();
   }
@@ -73,23 +118,12 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
     });
   }
 
-  Future<void> _loadUserData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString('user');
-    if (userJson != null) {
-      final user = json.decode(userJson);
-      setState(() {
-        _userData = user;
-        _userName = user['firstname'] ?? user['name'] ?? "Invité";
-      });
-    }
-  }
-
   Future<void> _fetchResources() async {
     setState(() => _isLoading = true);
     try {
       final response = await http.get(
         Uri.parse('http://localhost:5000/api/ressources/get_all_ressources'),
+        headers: {'Authorization': 'Bearer ${widget.token}'},
       );
       if (response.statusCode == 200) {
         setState(() {
@@ -107,10 +141,30 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
   String? _getImageUrl(List<dynamic>? media) {
     if (media == null || media.isEmpty) return null;
     final first = media[0];
-    if (first is Map && first.containsKey('img_vd') && first['img_vd'] is List && first['img_vd'].isNotEmpty) {
+    if (first is Map &&
+        first.containsKey('img_vd') &&
+        first['img_vd'] is List &&
+        first['img_vd'].isNotEmpty) {
       return 'http://localhost:5000${first['img_vd'][0]}';
     }
     return null;
+  }
+
+  IconData _getEventIcon(String title) {
+    switch (title) {
+      case 'Mariage':
+        return Icons.favorite;
+      case 'Conférence':
+        return Icons.business;
+      case 'Anniversaire':
+        return Icons.cake;
+      case 'Séminaire':
+        return Icons.school;
+      case 'Réunion':
+        return Icons.people;
+      default:
+        return Icons.music_note;
+    }
   }
 
   @override
@@ -138,12 +192,17 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                         _slides[index],
                         fit: BoxFit.cover,
                         width: double.infinity,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: const Color(0xFF9C27B0),
-                          child: const Center(
-                            child: Icon(Icons.event, size: 80, color: Colors.white54),
-                          ),
-                        ),
+                        errorBuilder:
+                            (_, __, ___) => Container(
+                              color: const Color(0xFF9C27B0),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.event,
+                                  size: 80,
+                                  color: Colors.white54,
+                                ),
+                              ),
+                            ),
                       );
                     },
                   ),
@@ -169,16 +228,23 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_userData != null)
+                          // Badge de bienvenue avec les données user réelles
+                          if (widget.user.isNotEmpty)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 '👋 Bienvenue $_userName',
-                                style: const TextStyle(color: Colors.white, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           const SizedBox(height: 20),
@@ -216,9 +282,14 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                             child: const TextField(
                               decoration: InputDecoration(
                                 hintText: 'Rechercher un événement...',
-                                prefixIcon: Icon(Icons.search, color: Colors.grey),
+                                prefixIcon: Icon(
+                                  Icons.search,
+                                  color: Colors.grey,
+                                ),
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(vertical: 15),
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
                               ),
                             ),
                           ),
@@ -239,7 +310,10 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                           width: _currentSlideIndex == index ? 24 : 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: _currentSlideIndex == index ? Colors.white : Colors.white.withOpacity(0.4),
+                            color:
+                                _currentSlideIndex == index
+                                    ? Colors.white
+                                    : Colors.white.withOpacity(0.4),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         );
@@ -250,7 +324,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
           ),
-          
+
           // ========== CATÉGORIES ==========
           SliverToBoxAdapter(
             child: Padding(
@@ -281,18 +355,17 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                               Container(
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  color: Color(item['color'] as int).withOpacity(0.1),
+                                  color: Color(
+                                    item['color'] as int,
+                                  ).withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(15),
                                 ),
-                                child: Icon(
-                                  item['title'] == 'Mariage' ? Icons.favorite :
-                                  item['title'] == 'Conférence' ? Icons.business :
-                                  item['title'] == 'Anniversaire' ? Icons.cake :
-                                  item['title'] == 'Séminaire' ? Icons.school :
-                                  item['title'] == 'Réunion' ? Icons.people :
-                                  Icons.music_note,
-                                  color: Color(item['color'] as int),
-                                  size: 30,
+                                child: Center(
+                                  child: Icon(
+                                    _getEventIcon(item['title'] as String),
+                                    color: Color(item['color'] as int),
+                                    size: 30,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -311,7 +384,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
           ),
-          
+
           // ========== RECOMMANDÉS POUR VOUS ==========
           SliverToBoxAdapter(
             child: Padding(
@@ -334,92 +407,110 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
           ),
-          
+
           _isLoading
               ? const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                )
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              )
               : SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: 230,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      itemCount: _resources.length > 6 ? 6 : _resources.length,
-                      itemBuilder: (context, index) {
-                        final resource = _resources[index];
-                        final imageUrl = _getImageUrl(resource['media']);
-                        return Container(
-                          width: 170,
-                          margin: const EdgeInsets.only(right: 15),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
+                child: SizedBox(
+                  height: 230,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount:
+                        _resources.length > 6 ? 6 : _resources.length,
+                    itemBuilder: (context, index) {
+                      final resource = _resources[index];
+                      final imageUrl = _getImageUrl(resource['media']);
+                      return Container(
+                        width: 170,
+                        margin: const EdgeInsets.only(right: 15),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.grey.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(15),
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              ClipRRect(
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                                child: imageUrl != null
-                                    ? Image.network(
+                              child:
+                                  imageUrl != null
+                                      ? Image.network(
                                         imageUrl,
                                         height: 120,
                                         width: double.infinity,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Container(
-                                          height: 120,
-                                          color: Colors.grey[200],
-                                          child: const Icon(Icons.image, size: 40, color: Colors.grey),
-                                        ),
+                                        errorBuilder:
+                                            (_, __, ___) => Container(
+                                              height: 120,
+                                              color: Colors.grey[200],
+                                              child: const Icon(
+                                                Icons.image,
+                                                size: 40,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
                                       )
-                                    : Container(
+                                      : Container(
                                         height: 120,
-                                        color: Colors.purple.withOpacity(0.2),
-                                        child: const Icon(Icons.image, size: 40, color: Colors.purple),
+                                        color: Colors.purple.withOpacity(
+                                          0.2,
+                                        ),
+                                        child: const Icon(
+                                          Icons.image,
+                                          size: 40,
+                                          color: Colors.purple,
+                                        ),
                                       ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      resource['name'] ?? 'Ressource',
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    resource['name'] ?? 'Ressource',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'À partir de ${(resource['price'] ?? 0).toStringAsFixed(0)} DT',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 11,
-                                      ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'À partir de ${(resource['price'] ?? 0).toStringAsFixed(0)} DT',
+                                    style: const TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 11,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
-          
+              ),
+
           // ========== TYPES D'ÉVÉNEMENTS ==========
           SliverToBoxAdapter(
             child: Container(
@@ -448,30 +539,28 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 1.2,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 1.2,
+                        ),
                     itemCount: _eventTypes.length,
                     itemBuilder: (context, index) {
                       final item = _eventTypes[index];
                       return Container(
                         decoration: BoxDecoration(
-                          color: Color(item['color'] as int).withOpacity(0.1),
+                          color: Color(
+                            item['color'] as int,
+                          ).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              item['title'] == 'Mariage' ? Icons.favorite :
-                              item['title'] == 'Conférence' ? Icons.business :
-                              item['title'] == 'Anniversaire' ? Icons.cake :
-                              item['title'] == 'Séminaire' ? Icons.school :
-                              item['title'] == 'Réunion' ? Icons.people :
-                              Icons.music_note,
+                              _getEventIcon(item['title'] as String),
                               color: Color(item['color'] as int),
                               size: 40,
                             ),
@@ -485,7 +574,10 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                             ),
                             Text(
                               item['category'] as String,
-                              style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                              style: TextStyle(
+                                color: Colors.grey[500],
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
@@ -496,7 +588,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
           ),
-          
+
           // ========== FEATURES ==========
           SliverToBoxAdapter(
             child: Container(
@@ -538,7 +630,11 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                                 color: Colors.white.withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(feature['icon'] as IconData, color: Colors.white, size: 24),
+                              child: Icon(
+                                feature['icon'] as IconData,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
                             const SizedBox(width: 15),
                             Expanded(
@@ -556,7 +652,10 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     feature['description'] as String,
-                                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -570,7 +669,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
           ),
-          
+
           // ========== À PROPOS ==========
           SliverToBoxAdapter(
             child: Container(
@@ -601,35 +700,50 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                   const SizedBox(height: 15),
                   Text(
                     'Smart YallaEvents est une application web intelligente conçue pour simplifier et moderniser l\'organisation des événements. Elle offre une plateforme centralisée permettant aux organisateurs de planifier efficacement leurs projets.',
-                    style: TextStyle(fontSize: 14, height: 1.5, color: Colors.grey[700]),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: Colors.grey[700],
+                    ),
                   ),
                   const SizedBox(height: 15),
                   Text(
                     'Grâce à une gestion des disponibilités en temps réel et une interface intuitive, notre solution réduit les conflits, optimise les ressources et améliore l\'expérience utilisateur.',
-                    style: TextStyle(fontSize: 14, height: 1.5, color: Colors.grey[700]),
+                    style: TextStyle(
+                      fontSize: 14,
+                      height: 1.5,
+                      color: Colors.grey[700],
+                    ),
                   ),
                   const SizedBox(height: 20),
                   Wrap(
                     spacing: 10,
-                    children: ['Innovation', 'Fiabilité', 'Simplicité'].map((tag) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF9C27B0).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          tag,
-                          style: const TextStyle(color: Color(0xFF9C27B0), fontSize: 12),
-                        ),
-                      );
-                    }).toList(),
+                    children:
+                        ['Innovation', 'Fiabilité', 'Simplicité'].map((tag) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 15,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF9C27B0).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              tag,
+                              style: const TextStyle(
+                                color: Color(0xFF9C27B0),
+                                fontSize: 12,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                   ),
                 ],
               ),
             ),
           ),
-          
+
           // ========== FAQ ==========
           SliverToBoxAdapter(
             child: Container(
@@ -665,7 +779,8 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                         GestureDetector(
                           onTap: () {
                             setState(() {
-                              _expandedFaqIndex = _expandedFaqIndex == index ? -1 : index;
+                              _expandedFaqIndex =
+                                  _expandedFaqIndex == index ? -1 : index;
                             });
                           },
                           child: Container(
@@ -675,11 +790,15 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                                 Expanded(
                                   child: Text(
                                     faq['q']!,
-                                    style: const TextStyle(fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                                 Icon(
-                                  _expandedFaqIndex == index ? Icons.expand_less : Icons.expand_more,
+                                  _expandedFaqIndex == index
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
                                   color: const Color(0xFF9C27B0),
                                 ),
                               ],
@@ -691,7 +810,10 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
                             padding: const EdgeInsets.only(bottom: 15),
                             child: Text(
                               faq['a']!,
-                              style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         if (index < _faq.length - 1)
@@ -703,7 +825,7 @@ class _HomeContentScreenState extends State<HomeContentScreen> {
               ),
             ),
           ),
-          
+
           const SliverToBoxAdapter(child: SizedBox(height: 80)),
         ],
       ),
