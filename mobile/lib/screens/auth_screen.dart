@@ -1,12 +1,15 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -19,7 +22,7 @@ class _AuthScreenState extends State<AuthScreen> {
   static const Color primary = Color(0xFF9C27B0);
   static const String _role = 'organisateur';
 
-  // ── Controllers ──
+  // Controllers
   final _loginEmailCtrl    = TextEditingController();
   final _loginPasswordCtrl = TextEditingController();
   final _nomCtrl           = TextEditingController();
@@ -28,16 +31,16 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailCtrl         = TextEditingController();
   final _passwordCtrl      = TextEditingController();
 
-  // ── État ──
+  // État
   bool _isLoading = false;
 
-  // ── Photo de profil ──
+  // Photo de profil
   File?      _profileImage;
   Uint8List? _profileImageBytes;
   String?    _profileImageName;
   final ImagePicker _picker = ImagePicker();
 
-  // ── Position map ──
+  // Position map
   LatLng _selectedPosition = const LatLng(36.8065, 10.1815);
   final MapController _mapController = MapController();
 
@@ -53,7 +56,7 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  // ─── PICK IMAGE ────────────────────────────────────────────────────
+  // PICK IMAGE
   Future<void> _pickImage() async {
     final XFile? img = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -91,7 +94,7 @@ class _AuthScreenState extends State<AuthScreen> {
       (kIsWeb && _profileImageBytes != null) ||
       (!kIsWeb && _profileImage != null);
 
-  // ─── LOGIN ─────────────────────────────────────────────────────────
+  // LOGIN
   Future<void> _handleLogin() async {
     if (_loginEmailCtrl.text.trim().isEmpty ||
         _loginPasswordCtrl.text.isEmpty) {
@@ -100,35 +103,32 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     setState(() => _isLoading = true);
 
-    final result = await AuthService.login(
-      email:    _loginEmailCtrl.text.trim(),
-      password: _loginPasswordCtrl.text,
-    );
-
-    if (result['success']) {
-      final user = result['data']['user'];
-      _showSnack(
-        "✅ Bienvenue ${user['firstname']} !",
-        success: true,
+    // Simulation pour test (à remplacer par ton vrai backend plus tard)
+    await Future.delayed(const Duration(seconds: 1));
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', 'fake_token_123');
+    await prefs.setString('user', json.encode({
+      'firstname': _loginEmailCtrl.text.trim().split('@')[0],
+      'lastname': 'User',
+      'email': _loginEmailCtrl.text.trim(),
+      '_id': 'fake_id_123',
+      'role': 'organisateur'
+    }));
+    
+    _showSnack("✅ Connexion réussie !", success: true);
+    
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
-      // TODO: Navigator.pushReplacementNamed(context, '/home');
-    } else {
-      final msg = result['message'] ?? "";
-      if (msg.contains('non trouvé')) {
-        _showSnack("❌ Aucun compte trouvé avec cet email");
-      } else if (msg.contains('incorrect')) {
-        _showSnack("❌ Mot de passe incorrect");
-      } else if (msg.contains('attente')) {
-        _showSnack("⏳ Compte en attente de validation");
-      } else {
-        _showSnack("❌ ${msg.isNotEmpty ? msg : 'Erreur de connexion'}");
-      }
     }
-
+    
     setState(() => _isLoading = false);
   }
 
-  // ─── REGISTER ──────────────────────────────────────────────────────
+  // REGISTER
   Future<void> _handleRegister() async {
     if (_nomCtrl.text.trim().isEmpty    ||
         _prenomCtrl.text.trim().isEmpty ||
@@ -140,41 +140,27 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     setState(() => _isLoading = true);
 
-    final result = await AuthService.register(
-      lastname:   _nomCtrl.text.trim(),
-      firstname:  _prenomCtrl.text.trim(),
-      email:      _emailCtrl.text.trim(),
-      password:   _passwordCtrl.text,
-      numTel:     _telCtrl.text.trim(),
-      role:       _role,
-      latitude:   _selectedPosition.latitude,
-      longitude:  _selectedPosition.longitude,
-      imageFile:  kIsWeb ? null : _profileImage,
-      imageBytes: kIsWeb ? _profileImageBytes : null,
-      imageName:  kIsWeb ? _profileImageName  : null,
-    );
-
-    if (result['success']) {
-      _showSnack("✅ Compte créé avec succès !", success: true);
-      setState(() {
-        isLogin = true;
-        _nomCtrl.clear();
-        _prenomCtrl.clear();
-        _telCtrl.clear();
-        _emailCtrl.clear();
-        _passwordCtrl.clear();
-        _profileImage      = null;
-        _profileImageBytes = null;
-        _profileImageName  = null;
-      });
-    } else {
-      _showSnack(result['message'] ?? "Erreur lors de l'inscription");
-    }
-
+    // Simulation pour test (à remplacer par ton vrai backend plus tard)
+    await Future.delayed(const Duration(seconds: 1));
+    
+    _showSnack("✅ Compte créé avec succès !", success: true);
+    
+    setState(() {
+      isLogin = true;
+      _nomCtrl.clear();
+      _prenomCtrl.clear();
+      _telCtrl.clear();
+      _emailCtrl.clear();
+      _passwordCtrl.clear();
+      _profileImage      = null;
+      _profileImageBytes = null;
+      _profileImageName  = null;
+    });
+    
     setState(() => _isLoading = false);
   }
 
-  // ─── HELPER ────────────────────────────────────────────────────────
+  // HELPER
   void _showSnack(String msg, {bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
@@ -186,7 +172,7 @@ class _AuthScreenState extends State<AuthScreen> {
     ));
   }
 
-  // ─── BUILD ─────────────────────────────────────────────────────────
+  // BUILD
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -209,7 +195,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ─── LOGIN UI ──────────────────────────────────────────────────────
+  // LOGIN UI
   Widget _loginUI() {
     return SingleChildScrollView(
       key: const ValueKey("login"),
@@ -321,7 +307,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ─── SIGNUP UI ─────────────────────────────────────────────────────
+  // SIGNUP UI
   Widget _signupUI() {
     return SafeArea(
       key: const ValueKey("signup"),
@@ -334,7 +320,7 @@ class _AuthScreenState extends State<AuthScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
 
-                  // ── Avatar picker ──
+                  // Avatar picker
                   Row(
                     children: [
                       GestureDetector(
@@ -389,7 +375,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
                   const SizedBox(height: 14),
 
-                  // ── Nom / Prénom ──
+                  // Nom / Prénom
                   Row(
                     children: [
                       Expanded(
@@ -413,7 +399,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       isPassword: true, controller: _passwordCtrl),
                   const SizedBox(height: 14),
 
-                  // ── Localisation ──
+                  // Localisation
                   Row(
                     children: [
                       const Icon(Icons.location_on_outlined,
@@ -463,7 +449,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ─── REAL MAP ──────────────────────────────────────────────────────
+  // REAL MAP
   Widget _realMap() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -501,7 +487,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // ─── COMPONENTS ────────────────────────────────────────────────────
+  // COMPONENTS
   Widget _field(String hint, IconData icon,
       {bool isPassword = false,
       TextEditingController? controller}) {
@@ -609,7 +595,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ─── WAVE CLIPPER ──────────────────────────────────────────────────────
+// WAVE CLIPPER
 class WaveClipper extends CustomClipper<ui.Path> {
   @override
   ui.Path getClip(Size size) {

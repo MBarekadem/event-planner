@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_screen.dart';
 
 class _PageData {
@@ -41,23 +42,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     ),
   ];
 
-  void _next() {
+  void _next() async {
     if (_currentPage < _pages.length - 1) {
       _controller.nextPage(
         duration: const Duration(milliseconds: 500),
         curve: Curves.easeInOut,
       );
     } else {
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const AuthScreen(),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
+      // Sauvegarde que l'utilisateur a vu l'onboarding
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('hasSeenOnboarding', true);
+      
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthScreen()),
+        );
+      }
     }
   }
 
@@ -122,7 +123,7 @@ class _OnboardingPage extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // ✅ Logo container — remplace _TentIcon par ton image
+                // Logo container
                 Container(
                   width: 46,
                   height: 46,
@@ -140,7 +141,7 @@ class _OnboardingPage extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.asset(
-                      'assets/logo.png', // ← Mets ton image ici
+                      'assets/logo.png',
                       fit: BoxFit.contain,
                       errorBuilder: (_, __, ___) => const Center(
                         child: Icon(
@@ -211,7 +212,7 @@ class _OnboardingPage extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // ── Image Section (dots + button à l'intérieur)
+          // ── Image Section
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -251,7 +252,7 @@ class _OnboardingPage extends StatelessWidget {
                       ),
                     ),
 
-                    // ✅ Dots — au-dessus du bouton, DANS l'image
+                    // Dots
                     Positioned(
                       bottom: 80,
                       left: 0,
@@ -276,7 +277,7 @@ class _OnboardingPage extends StatelessWidget {
                       ),
                     ),
 
-                    // ✅ Button — en bas de l'image
+                    // Button
                     Positioned(
                       left: 28,
                       right: 28,
