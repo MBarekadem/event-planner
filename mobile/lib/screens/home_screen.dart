@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'home_content_screen.dart';  // ← AJOUTE CET IMPORT
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -11,7 +11,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const Center(child: Text('🏠 ACCUEIL', style: TextStyle(fontSize: 24))),
+    const HomeContentScreen(),  // ← CHANGE ICI (plus de texte, c'est le widget)
     const Center(child: Text('📅 MES ÉVÉNEMENTS', style: TextStyle(fontSize: 24))),
     const Center(child: Text('❤️ MES FAVORIS', style: TextStyle(fontSize: 24))),
     const Center(child: Text('📄 MES DOCUMENTS', style: TextStyle(fontSize: 24))),
