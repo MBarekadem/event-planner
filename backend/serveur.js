@@ -40,12 +40,7 @@ connectDB();
 /* ================= MIDDLEWARES ================= */
 
 // CORS (autorise ton frontend React)
-app.use(
-  cors({
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-    credentials: true,
-  })
-);
+app.use(cors());
 
 // parser JSON
 app.use(express.json());
@@ -93,6 +88,6 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Serveur démarré → http://localhost:${PORT}`);
 });
