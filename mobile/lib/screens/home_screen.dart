@@ -72,10 +72,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 activeIcon: Icon(Icons.calendar_today),
                 label: 'Événements',
               ),
+              // ← "Prestataires" → "Ressources", icône mise à jour
               BottomNavigationBarItem(
-                icon: Icon(Icons.storefront_outlined),
-                activeIcon: Icon(Icons.storefront),
-                label: 'Prestataires',
+                icon: Icon(Icons.inventory_2_outlined),
+                activeIcon: Icon(Icons.inventory_2),
+                label: 'Ressources',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
@@ -103,7 +104,6 @@ class _MyEventsScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),

@@ -38,6 +38,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   List<Map<String, dynamic>> _availableTimeSlots = [];
   List<Map<String, dynamic>> _selectedTimes = [];
 
+  // Produit quantity
+  int _productQuantity = 1;
+
   // Cart
   List<dynamic> _cartItems = [];
   bool _addedToCart = false;
@@ -52,6 +55,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   static const Color _purple = Color(0xFF9C27B0);
   static const Color _darkPurple = Color(0xFF7B2FBE);
 
+  // Shared local storage with home_content_screen
+  static final Map<String, dynamic> _localStorage = {};
+
+  bool get _isProduct => (_resource?['type'] ?? '') == 'produit';
+
   @override
   void initState() {
     super.initState();
@@ -65,9 +73,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     _commentController.dispose();
     super.dispose();
   }
-
-  // Simulated local storage via a static map (replace with shared_preferences in production)
-  static final Map<String, dynamic> _localStorage = {};
 
   void _loadCartFromStorage() {
     final raw = _localStorage['reservationCart'];
@@ -139,8 +144,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
 
   bool _isDateAvailable(DateTime date) {
     final today = DateTime.now();
-    final todayMidnight =
-        DateTime(today.year, today.month, today.day);
+    final todayMidnight = DateTime(today.year, today.month, today.day);
     final check = DateTime(date.year, date.month, date.day);
     if (check.isBefore(todayMidnight)) return false;
     return !_unavailableDates.contains(check.toDateString());
@@ -167,7 +171,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           'id': '${start.toIso8601String()}-${end.toIso8601String()}',
           'start': start,
           'end': end,
-          'display': '${h.toString().padLeft(2, '0')}:00 - ${(h + 1).toString().padLeft(2, '0')}:00',
+          'display':
+              '${h.toString().padLeft(2, '0')}:00 - ${(h + 1).toString().padLeft(2, '0')}:00',
           'price': _resource?['price'] ?? 0,
         });
       }
@@ -190,44 +195,88 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   }
 
   double _calculateTotal() {
+    if (_isProduct) {
+      return (_resource?['price'] ?? 0) * _productQuantity.toDouble();
+    }
     return _selectedTimes.fold(
         0.0, (sum, s) => sum + (s['price'] as num).toDouble());
   }
 
   void _addToCart() {
     if (_resource == null) return;
-    final cartKey =
-        '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
+
+    String cartKey;
+    Map<String, dynamic> cartEntry;
+
+    if (_isProduct) {
+      // Produit : pas besoin de date/créneaux
+      cartKey = '${_resource['_id']}__produit__qty$_productQuantity';
+      final existing = List<dynamic>.from(_cartItems);
+      // Si le produit existe déjà, mettre à jour la quantité
+      final existingIndex =
+          existing.indexWhere((i) => i['resourceId'] == _resource['_id'] && i['type'] == 'produit');
+      if (existingIndex != -1) {
+        final newQty =
+            (existing[existingIndex]['quantity'] ?? 1) + _productQuantity;
+        existing[existingIndex]['quantity'] = newQty;
+        existing[existingIndex]['totalPrice'] =
+            (_resource['price'] ?? 0) * newQty;
+        existing[existingIndex]['cartKey'] =
+            '${_resource['_id']}__produit__qty$newQty';
+        _saveCart(existing);
+        setState(() => _addedToCart = true);
+        Future.delayed(
+            const Duration(seconds: 2), () => setState(() => _addedToCart = false));
+        _showCartSnack('Quantité mise à jour dans le panier !');
+        return;
+      }
+      cartEntry = {
+        'cartKey': cartKey,
+        'resourceId': _resource['_id'],
+        'resourceName': _resource['name'],
+        'price': _resource['price'],
+        'type': 'produit',
+        'quantity': _productQuantity,
+        'totalPrice': _calculateTotal(),
+        'selectedDate': null,
+        'selectedTimes': [],
+      };
+    } else {
+      // Service : date + créneaux requis
+      cartKey =
+          '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
+      cartEntry = {
+        'cartKey': cartKey,
+        'resourceId': _resource['_id'],
+        'resourceName': _resource['name'],
+        'price': _resource['price'],
+        'type': _resource['type'],
+        'quantity': 1,
+        'totalPrice': _calculateTotal() > 0
+            ? _calculateTotal()
+            : _resource['price'],
+        'selectedDate': _selectedDate?.toIso8601String(),
+        'selectedTimes': _selectedTimes
+            .map((s) => {
+                  'display': s['display'],
+                  'start': (s['start'] as DateTime).toIso8601String(),
+                  'end': (s['end'] as DateTime).toIso8601String(),
+                  'price': s['price'],
+                })
+            .toList(),
+      };
+    }
 
     final existing = List<dynamic>.from(_cartItems);
     if (existing.any((i) => i['cartKey'] == cartKey)) {
       _showCartSnack('Déjà dans votre panier');
       return;
     }
-
-    existing.add({
-      'cartKey': cartKey,
-      'resourceId': _resource['_id'],
-      'resourceName': _resource['name'],
-      'price': _resource['price'],
-      'type': _resource['type'],
-      'quantity': 1,
-      'totalPrice': _calculateTotal() > 0 ? _calculateTotal() : _resource['price'],
-      'selectedDate': _selectedDate?.toIso8601String(),
-      'selectedTimes': _selectedTimes
-          .map((s) => {
-                'display': s['display'],
-                'start': (s['start'] as DateTime).toIso8601String(),
-                'end': (s['end'] as DateTime).toIso8601String(),
-                'price': s['price'],
-              })
-          .toList(),
-    });
-
+    existing.add(cartEntry);
     _saveCart(existing);
     setState(() => _addedToCart = true);
-    Future.delayed(const Duration(seconds: 2),
-        () => setState(() => _addedToCart = false));
+    Future.delayed(
+        const Duration(seconds: 2), () => setState(() => _addedToCart = false));
     _showCartSnack('Ajouté au panier !');
   }
 
@@ -305,8 +354,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        body: Center(
-            child: CircularProgressIndicator(color: _purple)),
+        body: Center(child: CircularProgressIndicator(color: _purple)),
       );
     }
 
@@ -319,20 +367,26 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
 
     final images = _getImages();
     final isPrestataire = widget.user['role'] == 'prestataire';
-    final canAdd = _selectedTimes.isNotEmpty;
-    final alreadyInCart = canAdd &&
-        _cartItems.any((i) {
-          final key =
-              '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
-          return i['cartKey'] == key;
-        });
+
+    // Pour produits : toujours canAdd (quantité >= 1)
+    // Pour services : nécessite date + créneaux
+    final canAdd = _isProduct || _selectedTimes.isNotEmpty;
+
+    final alreadyInCart = _isProduct
+        ? false // les produits fusionnent au lieu de bloquer
+        : canAdd &&
+            _cartItems.any((i) {
+              final key =
+                  '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
+              return i['cartKey'] == key;
+            });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F0FF),
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // ── App Bar avec image
+          // App Bar avec image
           SliverAppBar(
             expandedHeight: 280,
             pinned: true,
@@ -355,8 +409,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   onTap: () => _showCartBottomSheet(context),
                   child: Container(
                     margin: const EdgeInsets.all(8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.black26,
                       borderRadius: BorderRadius.circular(10),
@@ -404,7 +458,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                       ),
                     ),
                   ),
-                  // Gradient overlay
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -414,7 +467,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                       ),
                     ),
                   ),
-                  // Image indicator
                   if (images.length > 1)
                     Positioned(
                       bottom: 16,
@@ -433,7 +485,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                         ),
                       ),
                     ),
-                  // Image thumbnails
                   if (images.length > 1)
                     Positioned(
                       bottom: 12,
@@ -445,8 +496,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                           images.length,
                           (i) => GestureDetector(
                             onTap: () => _pageController.animateToPage(i,
-                                duration:
-                                    const Duration(milliseconds: 300),
+                                duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeInOut),
                             child: Container(
                               margin:
@@ -469,44 +519,33 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             ),
           ),
 
-          // ── Content
           SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title card
                 _buildTitleCard(),
                 const SizedBox(height: 12),
-
-                // Provider info
                 _buildProviderCard(),
                 const SizedBox(height: 12),
-
-                // Description
                 _buildDescriptionCard(),
                 const SizedBox(height: 12),
-
-                // Attributes
                 if (_resource['attributes'] != null ||
                     _resource['customAttributes'] != null)
                   _buildAttributesCard(),
                 const SizedBox(height: 12),
 
-                // Calendar
-                _buildCalendarCard(),
-                const SizedBox(height: 12),
-
-                // Time slots
-                if (_showTimeSlots && _selectedDate != null)
-                  _buildTimeSlotsCard(),
-                if (_showTimeSlots && _selectedDate != null)
+                // ← Afficher calendrier SEULEMENT pour les services
+                if (!_isProduct) ...[
+                  _buildCalendarCard(),
                   const SizedBox(height: 12),
+                  if (_showTimeSlots && _selectedDate != null)
+                    _buildTimeSlotsCard(),
+                  if (_showTimeSlots && _selectedDate != null)
+                    const SizedBox(height: 12),
+                ],
 
-                // Booking card
                 _buildBookingCard(isPrestataire, canAdd, alreadyInCart),
                 const SizedBox(height: 12),
-
-                // Comments
                 _buildCommentsCard(),
                 const SizedBox(height: 32),
               ],
@@ -517,7 +556,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ── Title Card
   Widget _buildTitleCard() {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -546,13 +584,17 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF3E5F5),
+                  color: _isProduct
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFF3E5F5),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   (_resource['type'] ?? '').toString().capitalize(),
-                  style: const TextStyle(
-                      color: _purple, fontSize: 12, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      color: _isProduct ? Colors.green[700] : _purple,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -566,8 +608,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 const Icon(Icons.location_on, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
                 Text(_resource['locationname'].toString(),
-                    style:
-                        const TextStyle(fontSize: 13, color: Colors.grey)),
+                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
               ],
             ),
         ],
@@ -575,7 +616,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ── Provider Card
   Widget _buildProviderCard() {
     final prest = _resource['prestataire'];
     return Container(
@@ -618,7 +658,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ── Description Card
   Widget _buildDescriptionCard() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -639,15 +678,14 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           const SizedBox(height: 8),
           Text(
             _resource['description'] ?? '',
-            style: const TextStyle(
-                fontSize: 13, color: Colors.grey, height: 1.6),
+            style:
+                const TextStyle(fontSize: 13, color: Colors.grey, height: 1.6),
           ),
         ],
       ),
     );
   }
 
-  // ── Attributes Card
   Widget _buildAttributesCard() {
     final attrs = <String, dynamic>{};
     final raw = _resource['attributes'];
@@ -685,8 +723,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   ? (e.value ? 'Oui' : 'Non')
                   : e.value.toString();
               return Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFBEB),
                   border: Border.all(color: const Color(0xFFFDE68A)),
@@ -707,11 +745,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ── Calendar Card
   Widget _buildCalendarCard() {
     final monthNames = [
-      'Janvier','Février','Mars','Avril','Mai','Juin',
-      'Juillet','Août','Septembre','Octobre','Novembre','Décembre'
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
     final weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     final days = _getDaysInMonth(_currentMonth);
@@ -743,13 +780,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                     _availableTimeSlots = [];
                   }),
                   child: const Text('Réinitialiser',
-                      style:
-                          TextStyle(color: Colors.grey, fontSize: 12)),
+                      style: TextStyle(color: Colors.grey, fontSize: 12)),
                 ),
             ],
           ),
           const SizedBox(height: 12),
-          // Month nav
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -774,20 +809,20 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
             ],
           ),
-          // Week headers
           GridView.count(
             crossAxisCount: 7,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            children: weekDays.map((d) => Center(
-              child: Text(d,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey)),
-            )).toList(),
+            children: weekDays
+                .map((d) => Center(
+                      child: Text(d,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey)),
+                    ))
+                .toList(),
           ),
-          // Days grid
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -802,8 +837,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               final avail = _isDateAvailable(date);
               final isSelected =
                   _selectedDate?.toDateString() == date.toDateString();
-              final isToday = date.toDateString() ==
-                  DateTime.now().toDateString();
+              final isToday =
+                  date.toDateString() == DateTime.now().toDateString();
 
               Color bgColor = Colors.transparent;
               Color textColor =
@@ -832,8 +867,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                     color: bgColor,
                     borderRadius: BorderRadius.circular(8),
                     border: isToday && !isSelected
-                        ? Border.all(
-                            color: _purple.withOpacity(0.3))
+                        ? Border.all(color: _purple.withOpacity(0.3))
                         : null,
                   ),
                   child: Column(
@@ -866,7 +900,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               );
             },
           ),
-          // Legend
           const SizedBox(height: 8),
           Row(
             children: [
@@ -880,7 +913,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ── Time Slots Card
   Widget _buildTimeSlotsCard() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -914,8 +946,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           const SizedBox(height: 8),
           if (_selectedDate != null)
             Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFFF3E5F5),
                 borderRadius: BorderRadius.circular(10),
@@ -989,7 +1021,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   Text('${_selectedTimes.length} créneau(x)',
                       style: const TextStyle(
                           color: _purple, fontWeight: FontWeight.w500)),
-                  Text('Total : ${_calculateTotal().toStringAsFixed(0)} DT',
+                  Text(
+                      'Total : ${_calculateTotal().toStringAsFixed(0)} DT',
                       style: const TextStyle(
                           color: _purple, fontWeight: FontWeight.bold)),
                 ],
@@ -1001,7 +1034,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ── Booking Card
+  // ← Booking card selon type
   Widget _buildBookingCard(
       bool isPrestataire, bool canAdd, bool alreadyInCart) {
     final price = _resource['price'] ?? 0;
@@ -1024,14 +1057,17 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1A1A2E))),
-              const Text('/heure',
-                  style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                      fontWeight: FontWeight.normal)),
+              Text(
+                _isProduct ? ' / unité' : ' / heure',
+                style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.normal),
+              ),
             ],
           ),
           const SizedBox(height: 16),
+
           if (isPrestataire)
             Container(
               padding: const EdgeInsets.all(14),
@@ -1042,7 +1078,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
               child: const Column(
                 children: [
-                  Icon(Icons.info_outline, color: Color(0xFFD97706), size: 28),
+                  Icon(Icons.info_outline,
+                      color: Color(0xFFD97706), size: 28),
                   SizedBox(height: 6),
                   Text('Réservation réservée aux particuliers',
                       textAlign: TextAlign.center,
@@ -1053,12 +1090,119 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   SizedBox(height: 4),
                   Text('Les prestataires ne peuvent pas réserver.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Color(0xFFD97706), fontSize: 11)),
+                      style:
+                          TextStyle(color: Color(0xFFD97706), fontSize: 11)),
                 ],
               ),
             )
-          else if (alreadyInCart)
+          else if (_isProduct) ...[
+            // ← Sélecteur quantité pour produits
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F0FF),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                children: [
+                  const Text('Quantité',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A2E))),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      GestureDetector(
+                        onTap: _productQuantity > 1
+                            ? () => setState(
+                                () => _productQuantity--)
+                            : null,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _productQuantity > 1
+                                ? _purple
+                                : Colors.grey[300],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.remove,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                      Padding(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          '$_productQuantity',
+                          style: const TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _productQuantity++),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _purple,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.add,
+                              color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Total : ${_calculateTotal().toStringAsFixed(0)} DT',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _purple),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _addToCart,
+                icon: Icon(
+                    _addedToCart
+                        ? Icons.check
+                        : Icons.shopping_cart_outlined,
+                    size: 18),
+                label: Text(
+                  _addedToCart
+                      ? 'Ajouté !'
+                      : 'Ajouter au panier (${_calculateTotal().toStringAsFixed(0)} DT)',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      _addedToCart ? Colors.green : _purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ] else if (alreadyInCart)
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -1067,17 +1211,16 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.check_circle,
-                      color: _purple, size: 28),
+                  const Icon(Icons.check_circle, color: _purple, size: 28),
                   const SizedBox(height: 6),
                   const Text('Déjà dans votre panier',
                       style: TextStyle(
-                          color: _purple,
-                          fontWeight: FontWeight.w600)),
+                          color: _purple, fontWeight: FontWeight.w600)),
                   TextButton(
                     onPressed: () => _showCartBottomSheet(context),
                     child: const Text('Voir le panier →',
-                        style: TextStyle(color: _purple, fontSize: 12)),
+                        style:
+                            TextStyle(color: _purple, fontSize: 12)),
                   ),
                 ],
               ),
@@ -1095,11 +1238,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 label: Text(
                   _addedToCart
                       ? 'Ajouté !'
-                      : !_selectedDate
-                          .isPresent ? 'Sélectionnez une date'
-                      : _selectedTimes.isEmpty
-                          ? 'Choisissez des créneaux'
-                          : 'Ajouter au panier (${_calculateTotal().toStringAsFixed(0)} DT)',
+                      : _selectedDate == null
+                          ? 'Sélectionnez une date'
+                          : _selectedTimes.isEmpty
+                              ? 'Choisissez des créneaux'
+                              : 'Ajouter au panier (${_calculateTotal().toStringAsFixed(0)} DT)',
                   style: const TextStyle(fontSize: 13),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -1114,19 +1257,20 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 ),
               ),
             ),
+
           if (!isPrestataire)
             const Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text('Connexion requise uniquement pour envoyer',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  style:
+                      TextStyle(color: Colors.grey, fontSize: 11)),
             ),
         ],
       ),
     );
   }
 
-  // ── Comments Card
   Widget _buildCommentsCard() {
     final hasToken = widget.token.isNotEmpty;
     return Container(
@@ -1180,9 +1324,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           if (_averageRating > 0) ...[
             const SizedBox(height: 6),
             Text('Note moyenne : ${_averageRating.toStringAsFixed(1)}/5',
-                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                style:
+                    const TextStyle(color: Colors.grey, fontSize: 12)),
           ],
-          // Comment form
           if (_showCommentForm && hasToken) ...[
             const SizedBox(height: 14),
             const Text('Votre note',
@@ -1225,7 +1369,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _submittingComment ? null : _submitComment,
+                onPressed:
+                    _submittingComment ? null : _submitComment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _purple,
                   foregroundColor: Colors.white,
@@ -1244,7 +1389,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             ),
           ],
           const SizedBox(height: 14),
-          // Comments list
           if (_comments.isEmpty)
             const Center(
               child: Padding(
@@ -1256,7 +1400,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           else
             ...(_comments.take(5).map((c) => _CommentItem(
                   comment: c,
-                  currentUserId: widget.user['id'] ?? widget.user['_id'],
+                  currentUserId:
+                      widget.user['id'] ?? widget.user['_id'],
                   onDelete: (id) async {
                     await http.delete(
                         Uri.parse('$baseUrl/comments/$id'));
@@ -1268,7 +1413,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // Cart Bottom Sheet
   void _showCartBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -1280,9 +1424,22 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           _removeFromCart(key);
           Navigator.pop(context);
         },
+        onUpdateQuantity: (key, qty) {
+          final updated = List<dynamic>.from(_cartItems);
+          for (final item in updated) {
+            if (item['cartKey'] == key) {
+              item['quantity'] = qty;
+              item['totalPrice'] = (item['price'] ?? 0) * qty;
+              item['cartKey'] =
+                  '${item['resourceId']}__produit__qty$qty';
+            }
+          }
+          _saveCart(updated);
+          Navigator.pop(context);
+          _showCartBottomSheet(context);
+        },
         onNavigate: () {
           Navigator.pop(context);
-          // navigate to reservations
           _showCartSnack('Redirection vers vos réservations');
         },
       ),
@@ -1295,9 +1452,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     final first = DateTime(year, m, 1);
     final last = DateTime(year, m + 1, 0);
     final days = <Map<String, dynamic>>[];
-
-    // Leading empty slots (Monday-based)
-    final fdow = first.weekday; // 1=Mon..7=Sun
+    final fdow = first.weekday;
     for (var i = 0; i < fdow - 1; i++) {
       days.add({
         'date': first.subtract(Duration(days: fdow - 1 - i)),
@@ -1322,25 +1477,19 @@ extension DateExt on DateTime {
   String toDateString() => '$year-$month-$day';
   String toLocaleFR() {
     const months = [
-      'janvier','février','mars','avril','mai','juin',
-      'juillet','août','septembre','octobre','novembre','décembre'
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
     ];
     const days = [
-      'lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'
+      'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
     ];
     return '${days[weekday - 1]} $day ${months[month - 1]} $year';
   }
-
-  bool get isPresent => this != DateTime(0);
 }
 
 extension StringExt on String {
   String capitalize() =>
       isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
-}
-
-extension DateTimeNullable on DateTime? {
-  bool get isPresent => this != null;
 }
 
 // ── Helper Widgets ───────────────────────────────────────
@@ -1414,7 +1563,8 @@ class _LegendDot extends StatelessWidget {
             height: 8,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }
@@ -1509,26 +1659,36 @@ class _CommentItem extends StatelessWidget {
   }
 }
 
-class _CartBottomSheet extends StatelessWidget {
+// ── Cart Bottom Sheet (Resource Detail) ──────────────────
+class _CartBottomSheet extends StatefulWidget {
   final List<dynamic> cartItems;
   final Function(String) onRemove;
+  final Function(String, int) onUpdateQuantity;
   final VoidCallback onNavigate;
-  const _CartBottomSheet(
-      {required this.cartItems,
-      required this.onRemove,
-      required this.onNavigate});
+
+  const _CartBottomSheet({
+    required this.cartItems,
+    required this.onRemove,
+    required this.onUpdateQuantity,
+    required this.onNavigate,
+  });
 
   @override
+  State<_CartBottomSheet> createState() => _CartBottomSheetState();
+}
+
+class _CartBottomSheetState extends State<_CartBottomSheet> {
+  @override
   Widget build(BuildContext context) {
-    final total = cartItems.fold<double>(
+    final total = widget.cartItems.fold<double>(
         0.0,
         (s, i) =>
-            s +
-            (i['totalPrice'] ?? i['price'] ?? 0) *
-                (i['quantity'] ?? 1));
+            s + ((i['totalPrice'] ?? i['price'] ?? 0) as num).toDouble());
 
     return Container(
       padding: const EdgeInsets.all(20),
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1549,35 +1709,194 @@ class _CartBottomSheet extends StatelessWidget {
               const Icon(Icons.shopping_cart_outlined,
                   color: Color(0xFF9C27B0)),
               const SizedBox(width: 8),
-              Text('Mon panier (${cartItems.length})',
+              Text('Mon panier (${widget.cartItems.length})',
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 14),
-          if (cartItems.isEmpty)
+          if (widget.cartItems.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
               child: Text('Votre panier est vide',
                   style: TextStyle(color: Colors.grey)),
             )
           else
-            ...cartItems.map((item) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item['resourceName'] ?? '',
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
-                  subtitle: Text(
-                    '${(item['totalPrice'] ?? item['price'] ?? 0)} DT',
-                    style: const TextStyle(
-                        color: Color(0xFF9C27B0), fontSize: 12),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    onPressed: () => onRemove(item['cartKey']),
-                  ),
-                )),
-          if (cartItems.isNotEmpty) ...[
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.cartItems.length,
+                itemBuilder: (context, idx) {
+                  final item = widget.cartItems[idx];
+                  final isProduct = (item['type'] ?? '') == 'produit';
+                  final qty = (item['quantity'] ?? 1) as int;
+                  final unitPrice = (item['price'] ?? 0) as num;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F0FF),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item['resourceName'] ?? '',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A1A2E)),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () =>
+                                  widget.onRemove(item['cartKey']),
+                              child: const Icon(Icons.close,
+                                  size: 16, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isProduct
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFF3E5F5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            isProduct ? 'Produit' : 'Service',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isProduct
+                                  ? Colors.green[700]
+                                  : const Color(0xFF9C27B0),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (isProduct) ...[
+                          // ← Contrôle quantité MODIFIABLE pour produits
+                          Row(
+                            children: [
+                              const Text('Qté :',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.grey)),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: qty > 1
+                                    ? () => widget.onUpdateQuantity(
+                                        item['cartKey'], qty - 1)
+                                    : null,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: qty > 1
+                                        ? const Color(0xFF9C27B0)
+                                        : Colors.grey[300],
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.remove,
+                                      size: 14, color: Colors.white),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12),
+                                child: Text(
+                                  '$qty',
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => widget.onUpdateQuantity(
+                                    item['cartKey'], qty + 1),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF9C27B0),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.add,
+                                      size: 14, color: Colors.white),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${(unitPrice * qty).toStringAsFixed(0)} DT',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF9C27B0)),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          // Services : afficher date et créneaux (non modifiable)
+                          if (item['selectedDate'] != null)
+                            Text(
+                              'Date : ${_formatDate(item['selectedDate'])}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey),
+                            ),
+                          if (item['selectedTimes'] != null &&
+                              (item['selectedTimes'] as List).isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              children:
+                                  (item['selectedTimes'] as List)
+                                      .map((t) => Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF3E5F5),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              t['display'] ?? '',
+                                              style: const TextStyle(
+                                                  fontSize: 10,
+                                                  color:
+                                                      Color(0xFF9C27B0)),
+                                            ),
+                                          ))
+                                      .toList(),
+                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              '${(item['totalPrice'] ?? item['price'] ?? 0)} DT',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF9C27B0)),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          if (widget.cartItems.isNotEmpty) ...[
             const Divider(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1595,7 +1914,7 @@ class _CartBottomSheet extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: onNavigate,
+                onPressed: widget.onNavigate,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF9C27B0),
                   foregroundColor: Colors.white,
@@ -1611,5 +1930,18 @@ class _CartBottomSheet extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(String isoDate) {
+    try {
+      final dt = DateTime.parse(isoDate);
+      const months = [
+        'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
+        'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'
+      ];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return isoDate;
+    }
   }
 }

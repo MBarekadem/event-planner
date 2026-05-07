@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'vendors_screen.dart';
 import 'profile_screen.dart';
 import 'resource_detail_screen.dart';
-import 'notifications_screen.dart';  // ← AJOUTEZ CET IMPORT
+import 'notifications_screen.dart';
 
 class HomeContentScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -23,10 +23,14 @@ class _HomeContentScreenState extends State<HomeContentScreen>
   List<dynamic> _recommendedResources = [];
   bool _loadingFeatured = true;
   bool _loadingRecs = true;
-  int _notificationCount = 0;  // ← Changé à 0 par défaut
+  int _notificationCount = 0;
+  int _cartCount = 0; // ← compteur panier
   final TextEditingController _searchController = TextEditingController();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+
+  // Simulated local storage (same as resource_detail_screen)
+  static final Map<String, dynamic> _localStorage = {};
 
   static const String baseUrl = 'http://localhost:5000/api';
 
@@ -51,7 +55,8 @@ class _HomeContentScreenState extends State<HomeContentScreen>
     _fadeController.forward();
     _fetchFeaturedResources();
     _fetchRecommendations();
-    _fetchNotificationCount();  // ← AJOUTEZ CET APPEL
+    _fetchNotificationCount();
+    _refreshCartCount();
   }
 
   @override
@@ -61,7 +66,15 @@ class _HomeContentScreenState extends State<HomeContentScreen>
     super.dispose();
   }
 
-  // ← NOUVELLE MÉTHODE POUR LE COMPTEUR DE NOTIFICATIONS
+  void _refreshCartCount() {
+    final raw = _localStorage['reservationCart'];
+    if (raw != null) {
+      setState(() => _cartCount = (raw as List).length);
+    } else {
+      setState(() => _cartCount = 0);
+    }
+  }
+
   Future<void> _fetchNotificationCount() async {
     if (widget.token.isEmpty) return;
     try {
@@ -152,25 +165,12 @@ class _HomeContentScreenState extends State<HomeContentScreen>
           user: widget.user,
           token: widget.token,
           initialCategory: category,
-          searchQuery: searchQuery,  // ← AJOUTEZ searchQuery
+          searchQuery: searchQuery,
         ),
       ),
     );
   }
 
-  void _navigateToProfile() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProfileScreen(
-          user: widget.user,
-          token: widget.token,
-        ),
-      ),
-    );
-  }
-
-  // ← MÉTHODE CORRIGÉE POUR LES NOTIFICATIONS
   void _navigateToNotifications() async {
     final result = await Navigator.push(
       context,
@@ -181,10 +181,43 @@ class _HomeContentScreenState extends State<HomeContentScreen>
         ),
       ),
     );
-    // Si on revient des notifications, rafraîchir le compteur
     if (result == true) {
       _fetchNotificationCount();
     }
+  }
+
+  // ← Afficher le panier (bottom sheet)
+  void _showCartBottomSheet() {
+    final raw = _localStorage['reservationCart'];
+    final cartItems = raw != null ? List<dynamic>.from(raw) : <dynamic>[];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _HomeCartBottomSheet(
+        cartItems: cartItems,
+        onRemove: (key) {
+          final updated = cartItems.where((i) => i['cartKey'] != key).toList();
+          _localStorage['reservationCart'] = updated;
+          Navigator.pop(context);
+          _refreshCartCount();
+        },
+        onUpdateQuantity: (key, qty) {
+          for (final item in cartItems) {
+            if (item['cartKey'] == key) {
+              item['quantity'] = qty;
+              item['totalPrice'] = (item['price'] ?? 0) * qty;
+            }
+          }
+          _localStorage['reservationCart'] = cartItems;
+          Navigator.pop(context);
+          _showCartBottomSheet();
+          _refreshCartCount();
+        },
+      ),
+    );
+    _refreshCartCount();
   }
 
   void _ouvrirDetailRessource(dynamic resource) {
@@ -199,10 +232,9 @@ class _HomeContentScreenState extends State<HomeContentScreen>
           token: widget.token,
         ),
       ),
-    );
+    ).then((_) => _refreshCartCount()); // rafraîchir après retour
   }
 
-  // ← MÉTHODE POUR LA RECHERCHE
   void _performSearch(String query) {
     if (query.trim().isEmpty) return;
     _navigateToVendors(searchQuery: query.trim());
@@ -335,17 +367,44 @@ class _HomeContentScreenState extends State<HomeContentScreen>
 
               const SizedBox(width: 8),
 
-              // Icône PROFIL
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.person_outline,
-                      color: Colors.white, size: 24),
-                  onPressed: _navigateToProfile,
-                ),
+              // ← ICÔNE PANIER (remplace l'icône profil)
+              Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.shopping_cart_outlined,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      onPressed: _showCartBottomSheet,
+                    ),
+                  ),
+                  if (_cartCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          _cartCount > 99 ? '99+' : '$_cartCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -354,7 +413,6 @@ class _HomeContentScreenState extends State<HomeContentScreen>
     );
   }
 
-  // ← BARRE DE RECHERCHE CORRIGÉE
   Widget _buildSearchBar() {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
@@ -392,7 +450,7 @@ class _HomeContentScreenState extends State<HomeContentScreen>
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
         onChanged: (value) {
-          setState(() {});  // Pour rafraîchir l'icône clear
+          setState(() {});
         },
       ),
     );
@@ -595,6 +653,291 @@ class _HomeContentScreenState extends State<HomeContentScreen>
   }
 }
 
+// ─── Bottom Sheet Panier (Home) ───────────────────────────────────────────────
+class _HomeCartBottomSheet extends StatefulWidget {
+  final List<dynamic> cartItems;
+  final Function(String) onRemove;
+  final Function(String, int) onUpdateQuantity;
+
+  const _HomeCartBottomSheet({
+    required this.cartItems,
+    required this.onRemove,
+    required this.onUpdateQuantity,
+  });
+
+  @override
+  State<_HomeCartBottomSheet> createState() => _HomeCartBottomSheetState();
+}
+
+class _HomeCartBottomSheetState extends State<_HomeCartBottomSheet> {
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.cartItems.fold<double>(
+      0.0,
+      (s, i) => s + ((i['totalPrice'] ?? i['price'] ?? 0) as num).toDouble(),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          Row(
+            children: [
+              const Icon(Icons.shopping_cart_outlined,
+                  color: Color(0xFF9C27B0)),
+              const SizedBox(width: 8),
+              Text('Mon panier (${widget.cartItems.length})',
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (widget.cartItems.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('Votre panier est vide',
+                  style: TextStyle(color: Colors.grey)),
+            )
+          else
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: widget.cartItems.length,
+                itemBuilder: (context, idx) {
+                  final item = widget.cartItems[idx];
+                  final isProduct = (item['type'] ?? '') == 'produit';
+                  final qty = (item['quantity'] ?? 1) as int;
+                  final unitPrice = (item['price'] ?? 0) as num;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F0FF),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item['resourceName'] ?? '',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1A1A2E)),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () =>
+                                  widget.onRemove(item['cartKey']),
+                              child: const Icon(Icons.close,
+                                  size: 16, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        // Badge type
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isProduct
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFF3E5F5),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            isProduct ? 'Produit' : 'Service',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isProduct
+                                  ? Colors.green[700]
+                                  : const Color(0xFF9C27B0),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (isProduct) ...[
+                          // Contrôle quantité pour produits
+                          Row(
+                            children: [
+                              const Text('Quantité :',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.grey)),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: qty > 1
+                                    ? () => widget.onUpdateQuantity(
+                                        item['cartKey'], qty - 1)
+                                    : null,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: qty > 1
+                                        ? const Color(0xFF9C27B0)
+                                        : Colors.grey[300],
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.remove,
+                                      size: 14, color: Colors.white),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12),
+                                child: Text(
+                                  '$qty',
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => widget.onUpdateQuantity(
+                                    item['cartKey'], qty + 1),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFF9C27B0),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.add,
+                                      size: 14, color: Colors.white),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${(unitPrice * qty).toStringAsFixed(0)} DT',
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF9C27B0)),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          // Créneaux pour services
+                          if (item['selectedDate'] != null)
+                            Text(
+                              'Date : ${_formatDate(item['selectedDate'])}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey),
+                            ),
+                          if (item['selectedTimes'] != null &&
+                              (item['selectedTimes'] as List).isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 4,
+                              runSpacing: 4,
+                              children: (item['selectedTimes'] as List)
+                                  .map((t) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              const Color(0xFFF3E5F5),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          t['display'] ?? '',
+                                          style: const TextStyle(
+                                              fontSize: 10,
+                                              color:
+                                                  Color(0xFF9C27B0)),
+                                        ),
+                                      ))
+                                  .toList(),
+                            ),
+                          ],
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              '${(item['totalPrice'] ?? item['price'] ?? 0)} DT',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF9C27B0)),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          if (widget.cartItems.isNotEmpty) ...[
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total estimé',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('${total.toStringAsFixed(0)} DT',
+                    style: const TextStyle(
+                        color: Color(0xFF9C27B0),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF9C27B0),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: const Text('Continuer mes réservations'),
+              ),
+            ),
+          ],
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String isoDate) {
+    try {
+      final dt = DateTime.parse(isoDate);
+      const months = [
+        'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
+        'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'
+      ];
+      return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+    } catch (_) {
+      return isoDate;
+    }
+  }
+}
+
 // ─── Tuile Catégorie ─────────────────────────────────────────────────────────
 class _CategoryTile extends StatelessWidget {
   final String label;
@@ -756,7 +1099,7 @@ class _ResourceCardHorizontal extends StatelessWidget {
                     ),
                   const SizedBox(height: 4),
                   Text(
-                    '$price DT/h',
+                    type == 'produit' ? '$price DT' : '$price DT/h',
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -863,7 +1206,7 @@ class _ResourceCardVertical extends StatelessWidget {
                         ],
                       ),
                       child: Text(
-                        '$price DT/h',
+                        type == 'produit' ? '$price DT' : '$price DT/h',
                         style: const TextStyle(
                           color: Color(0xFF9C27B0),
                           fontWeight: FontWeight.bold,

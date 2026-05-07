@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'resource_detail_screen.dart';  // Note: utilisez resource_detail_page.dart
+import 'resource_detail_screen.dart';
 
 class VendorsScreen extends StatefulWidget {
   final Map<String, dynamic> user;
   final String token;
   final String? initialCategory;
-  final String? searchQuery;  // ← AJOUT DE searchQuery
+  final String? searchQuery;
 
   const VendorsScreen({
     super.key,
     required this.user,
     required this.token,
     this.initialCategory,
-    this.searchQuery,  // ← AJOUT DE searchQuery
+    this.searchQuery,
   });
 
   @override
@@ -50,8 +50,7 @@ class _VendorsScreenState extends State<VendorsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
-    
-    // Appliquer la catégorie initiale si fournie
+
     if (widget.initialCategory != null) {
       final idx = _tabs.indexWhere((t) => t['value'] == widget.initialCategory);
       if (idx != -1) {
@@ -59,13 +58,12 @@ class _VendorsScreenState extends State<VendorsScreen>
         _tabController.animateTo(idx);
       }
     }
-    
-    // Appliquer la recherche initiale si fournie
+
     if (widget.searchQuery != null && widget.searchQuery!.isNotEmpty) {
       _search = widget.searchQuery!;
       _searchController.text = widget.searchQuery!;
     }
-    
+
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {
@@ -110,7 +108,6 @@ class _VendorsScreenState extends State<VendorsScreen>
   void _applyFilters() {
     List<dynamic> f = List.from(_allResources);
 
-    // Filtre recherche (texte)
     if (_search.isNotEmpty) {
       final t = _search.toLowerCase();
       f = f.where((r) {
@@ -118,24 +115,21 @@ class _VendorsScreenState extends State<VendorsScreen>
         final desc = (r['description'] ?? '').toString().toLowerCase();
         final loc = (r['locationname'] ?? '').toString().toLowerCase();
         final category = (r['category'] ?? '').toString().toLowerCase();
-        return name.contains(t) || 
-               desc.contains(t) || 
-               loc.contains(t) ||
-               category.contains(t);
+        return name.contains(t) ||
+            desc.contains(t) ||
+            loc.contains(t) ||
+            category.contains(t);
       }).toList();
     }
 
-    // Filtre catégorie
     if (_selectedCategory.isNotEmpty) {
       f = f.where((r) => r['category'] == _selectedCategory).toList();
     }
 
-    // Filtre prix max
     if (_maxPrice != null) {
       f = f.where((r) => (r['price'] ?? 0) <= _maxPrice!).toList();
     }
 
-    // Tri
     switch (_sortBy) {
       case 'price_asc':
         f.sort((a, b) => (a['price'] ?? 0).compareTo(b['price'] ?? 0));
@@ -199,7 +193,7 @@ class _VendorsScreenState extends State<VendorsScreen>
                             if (index == 0) {
                               return _buildResultsCount();
                             }
-                            return _VendorListTile(
+                            return _ResourceListTile(
                               resource: _filtered[index - 1],
                               imageUrl:
                                   _getResourceImage(_filtered[index - 1]),
@@ -269,12 +263,13 @@ class _VendorsScreenState extends State<VendorsScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Prestataires',
+                        // ← "Prestataires" → "Ressources"
+                        Text('Ressources',
                             style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold)),
-                        Text('Trouvez le prestataire idéal',
+                        Text('Trouvez la ressource idéale',
                             style: TextStyle(
                                 color: Colors.white70, fontSize: 12)),
                       ],
@@ -301,7 +296,6 @@ class _VendorsScreenState extends State<VendorsScreen>
                 ],
               ),
               const SizedBox(height: 12),
-              // Barre de recherche
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -314,14 +308,15 @@ class _VendorsScreenState extends State<VendorsScreen>
                     _applyFilters();
                   },
                   decoration: InputDecoration(
-                    hintText: 'Rechercher des prestataires...',
+                    hintText: 'Rechercher des ressources...',
                     hintStyle:
                         TextStyle(color: Colors.grey[400], fontSize: 13),
                     prefixIcon:
                         Icon(Icons.search, color: Colors.grey[400], size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
-                            icon: Icon(Icons.clear, color: Colors.grey[400], size: 18),
+                            icon: Icon(Icons.clear,
+                                color: Colors.grey[400], size: 18),
                             onPressed: () {
                               _searchController.clear();
                               _search = '';
@@ -335,16 +330,15 @@ class _VendorsScreenState extends State<VendorsScreen>
                   ),
                 ),
               ),
-              // Panneau de filtres
               if (_showFilters) ...[
                 const SizedBox(height: 10),
                 _buildFilterPanel(),
               ],
-              // Afficher le terme de recherche actif
               if (_search.isNotEmpty && !_showFilters) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -352,11 +346,13 @@ class _VendorsScreenState extends State<VendorsScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.search, size: 12, color: Colors.white70),
+                      const Icon(Icons.search,
+                          size: 12, color: Colors.white70),
                       const SizedBox(width: 4),
                       Text(
                         'Recherche: "$_search"',
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 11),
                       ),
                       const SizedBox(width: 4),
                       GestureDetector(
@@ -367,7 +363,8 @@ class _VendorsScreenState extends State<VendorsScreen>
                             _applyFilters();
                           });
                         },
-                        child: const Icon(Icons.close, size: 12, color: Colors.white70),
+                        child: const Icon(Icons.close,
+                            size: 12, color: Colors.white70),
                       ),
                     ],
                   ),
@@ -406,15 +403,16 @@ class _VendorsScreenState extends State<VendorsScreen>
             },
             decoration: InputDecoration(
               hintText: 'Ex: 500',
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+              hintStyle:
+                  TextStyle(color: Colors.white.withOpacity(0.5)),
               filled: true,
               fillColor: Colors.white.withOpacity(0.15),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
               ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
             ),
           ),
           const SizedBox(height: 10),
@@ -483,7 +481,8 @@ class _VendorsScreenState extends State<VendorsScreen>
                   });
                 },
                 child: const Text('Réinitialiser',
-                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    style:
+                        TextStyle(color: Colors.white70, fontSize: 12)),
               ),
             ),
         ],
@@ -503,9 +502,8 @@ class _VendorsScreenState extends State<VendorsScreen>
         unselectedLabelColor: Colors.grey,
         labelStyle:
             const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        tabs: _tabs
-            .map((t) => Tab(text: t['label'] as String))
-            .toList(),
+        tabs:
+            _tabs.map((t) => Tab(text: t['label'] as String)).toList(),
       ),
     );
   }
@@ -514,7 +512,8 @@ class _VendorsScreenState extends State<VendorsScreen>
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Text(
-        '${_filtered.length} prestataire(s) trouvé(s)',
+        // ← "prestataire(s)" → "ressource(s)"
+        '${_filtered.length} ressource(s) trouvée(s)',
         style: const TextStyle(
           color: Color(0xFF6B7280),
           fontSize: 13,
@@ -531,7 +530,8 @@ class _VendorsScreenState extends State<VendorsScreen>
         children: [
           Icon(Icons.search_off, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 12),
-          const Text('Aucun prestataire trouvé',
+          // ← "prestataire" → "ressource"
+          const Text('Aucune ressource trouvée',
               style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -545,14 +545,14 @@ class _VendorsScreenState extends State<VendorsScreen>
   }
 }
 
-// ─── Vendor List Tile ──────────────────────────────────
-class _VendorListTile extends StatelessWidget {
+// ─── Resource List Tile (renommé de _VendorListTile) ──────────────────────────
+class _ResourceListTile extends StatelessWidget {
   final dynamic resource;
   final String imageUrl;
   final String priceRange;
   final VoidCallback onTap;
 
-  const _VendorListTile({
+  const _ResourceListTile({
     required this.resource,
     required this.imageUrl,
     required this.priceRange,
@@ -565,11 +565,8 @@ class _VendorListTile extends StatelessWidget {
     final price = resource['price'] ?? 0;
     final location = resource['locationname'] ?? '';
     final type = resource['type'] ?? '';
-    final category = resource['category'] ?? '';
 
-    // Note moyenne (calculée à partir des commentaires ou par défaut)
     const rating = 4.7;
-    const reviewCount = 0;
 
     return GestureDetector(
       onTap: onTap,
@@ -645,18 +642,44 @@ class _VendorListTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A2E),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A2E),
+                            ),
+                          ),
+                        ),
+                        // Badge type
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: type == 'produit'
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFF3E5F5),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            type == 'produit' ? 'Produit' : 'Service',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: type == 'produit'
+                                  ? Colors.green[700]
+                                  : const Color(0xFF9C27B0),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 3),
-                    // Étoiles
                     Row(
                       children: [
                         ...List.generate(
@@ -678,59 +701,35 @@ class _VendorListTile extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // Localisation
-                    Row(
-                      children: [
-                        const Icon(Icons.location_on,
-                            size: 12, color: Colors.grey),
-                        const SizedBox(width: 3),
-                        Expanded(
-                          child: Text(
-                            location,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey),
+                    if (location.isNotEmpty)
+                      Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              size: 12, color: Colors.grey),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              location,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                     const SizedBox(height: 8),
-                    // Boutons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Flexible(
-                          child: Row(
-                            children: [
-                              GestureDetector(
-                                onTap: () {},
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF3E5F5),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.phone,
-                                      size: 14,
-                                      color: Color(0xFF9C27B0)),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              GestureDetector(
-                                onTap: () {},
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF3E5F5),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.mail_outline,
-                                      size: 14,
-                                      color: Color(0xFF9C27B0)),
-                                ),
-                              ),
-                            ],
+                        Text(
+                          type == 'produit'
+                              ? '$price DT'
+                              : '$price DT/h',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF9C27B0),
                           ),
                         ),
                         ElevatedButton(
@@ -744,9 +743,10 @@ class _VendorListTile extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            tapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: const Text('Réserver',
+                          child: const Text('Voir',
                               style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold)),

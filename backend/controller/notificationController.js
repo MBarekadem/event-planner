@@ -43,14 +43,14 @@ export const createNotification = async (
     });
 
     await notification.save();
-    console.log(`🔔 Notification créée pour ${userId}: ${title} → ${correctedLink || 'pas de lien'}`);
+    console.log(` Notification créée pour ${userId}: ${title} → ${correctedLink || 'pas de lien'}`);
     return notification;
   } catch (error) {
     console.error("Erreur création notification:", error);
   }
 };
 
-// 📥 GET toutes les notifications d'un user (avec unreadCount pour le Navbar)
+//  GET toutes les notifications d'un user (avec unreadCount pour le Navbar)
 export const getUserNotifications = async (req, res) => {
   try {
     const { page = 1, limit = 30 } = req.query;

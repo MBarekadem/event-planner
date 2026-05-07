@@ -1,9 +1,9 @@
+
 import Location from "../model/location.js";
 import Resource from "../model/ressources.js";
 import User from "../model/user.js";
 import mongoose from "mongoose";
 import { generateInvoice } from "../utils/invoice.js";
-// ✅ Import correct depuis le controller (pas depuis routes)
 import { createNotification } from '../controller/notificationController.js';
 import Event from "../model/event.js";
 import Dispo from "../model/disponibilite.js";
@@ -15,12 +15,14 @@ export const createLocation = async (req, res) => {
     try {
         const { event, resource, dateDebut, dateFin } = req.body;
 
+        // Vérification champs obligatoires
         if (!event || !resource || !dateDebut || !dateFin) {
             return res.status(400).json({
                 message: "Tous les champs sont obligatoires"
             });
         }
 
+        // Vérifier que l'événement appartient à l'organisateur connecté
         const eventExists = await Event.findOne({
             _id: event,
             organisateur_id: new mongoose.Types.ObjectId(req.user.id)
@@ -32,6 +34,7 @@ export const createLocation = async (req, res) => {
             });
         }
 
+        // Vérifier existence ressource
         const resourceExists = await Resource.findById(resource)
             .populate("prestataire", "firstname lastname email");
 
@@ -41,17 +44,12 @@ export const createLocation = async (req, res) => {
             });
         }
 
+        // Vérifier si une demande similaire existe déjà
         const existingRequest = await Location.findOne({
             resource: resource,
             organisateur: req.user.id,
-
-            // ✅ seulement les demandes en attente
             status: "en attente",
-
-            // ✅ ignorer les déjà payées
             payer: { $ne: "payer" },
-
-            // ✅ vrai conflit
             $or: [
                 {
                     dateDebut: { $lt: new Date(dateFin) },
@@ -66,6 +64,7 @@ export const createLocation = async (req, res) => {
             });
         }
 
+        // Création location
         const newLocation = new Location({
             event,
             resource,
@@ -76,7 +75,9 @@ export const createLocation = async (req, res) => {
 
         await newLocation.save();
 
-        // ✅ NOTIFICATION POUR LE PRESTATAIRE
+        // ============================
+        // ✅ NOTIFICATION PRESTATAIRE
+        // ============================
         try {
             const organisateur = await User.findById(req.user.id);
 
@@ -89,11 +90,11 @@ export const createLocation = async (req, res) => {
                     "Nouvelle demande de réservation",
                     `${organisateur?.firstname || "Un organisateur"} ${organisateur?.lastname || ""} souhaite réserver votre ressource "${resourceExists.name}" pour le ${formattedDate}.`,
                     "event",
-                    "/mes-demandes"  // ✅ route prestataire correcte dans App.jsx
+                    "/mes-demandes"
                 );
             }
         } catch (notifError) {
-            console.error("Erreur création notification réservation:", notifError);
+            console.error("Erreur notification réservation:", notifError);
         }
 
         res.status(201).json({
@@ -108,7 +109,7 @@ export const createLocation = async (req, res) => {
 };
 
 // ============================
-// ✅ VOIR MES DEMANDES (organisateur)
+// ✅ MES DEMANDES (organisateur)
 // ============================
 export const getMyLocations = async (req, res) => {
     try {
@@ -126,7 +127,7 @@ export const getMyLocations = async (req, res) => {
 };
 
 // ============================
-// ✅ VOIR LES DEMANDES REÇUES (prestataire)
+// ✅ DEMANDES REÇUES (prestataire)
 // ============================
 export const getLocationsForProvider = async (req, res) => {
     try {
@@ -139,6 +140,7 @@ export const getLocationsForProvider = async (req, res) => {
             .populate("organisateur");
 
         const filtered = locations.filter(loc => loc.resource);
+
         res.status(200).json(filtered);
     } catch (error) {
         console.error("ERREUR getLocationsForProvider:", error);
@@ -147,7 +149,7 @@ export const getLocationsForProvider = async (req, res) => {
 };
 
 // ============================
-// ✅ METTRE À JOUR LE STATUT (prestataire)
+// ✅ ACCEPTER / REFUSER DEMANDE
 // ============================
 export const updateStatusByProvider = async (req, res) => {
     try {
@@ -162,20 +164,23 @@ export const updateStatusByProvider = async (req, res) => {
             return res.status(404).json({ message: "Demande non trouvée" });
         }
 
+        // Empêcher double traitement
         if (["acceptée", "refusée"].includes(location.status)) {
             return res.status(400).json({
                 message: "Demande déjà traitée"
             });
         }
 
+        // Vérification prestataire propriétaire
         if (location.resource.prestataire.toString() !== req.user.id.toString()) {
-            return res.status(403).json({ message: "Non autorisé (prestataire)" });
+            return res.status(403).json({ message: "Non autorisé" });
         }
 
         if (!["acceptée", "refusée"].includes(status)) {
             return res.status(400).json({ message: "Statut invalide" });
         }
 
+        // Vérification conflit réservation
         if (status === "acceptée") {
             const conflict = await Location.findOne({
                 resource: location.resource._id,
@@ -196,9 +201,11 @@ export const updateStatusByProvider = async (req, res) => {
             }
         }
 
+        // Mise à jour statut
         location.status = status;
         await location.save();
 
+        // Si acceptée → refuser autres demandes en conflit
         if (status === "acceptée") {
             await Location.updateMany(
                 {
@@ -216,22 +223,27 @@ export const updateStatusByProvider = async (req, res) => {
             );
         }
 
-        // ✅ NOTIFICATION POUR L'ORGANISATEUR
+        // ============================
+        // ✅ NOTIFICATION ORGANISATEUR
+        // ============================
         try {
             if (location.organisateur) {
                 const prestataire = await User.findById(req.user.id);
 
                 await createNotification(
                     location.organisateur._id,
-                    status === "acceptée" ? "Réservation acceptée ✅" : "Réservation refusée ❌",
-                    `Le prestataire ${prestataire?.firstname || ""} ${prestataire?.lastname || ""} a ${status === "acceptée" ? "accepté" : "refusé"
-                    } votre demande pour la ressource "${location.resource.name}".`,
+                    status === "acceptée"
+                        ? "Réservation acceptée ✅"
+                        : "Réservation refusée ❌",
+
+                    `Le prestataire ${prestataire?.firstname || ""} ${prestataire?.lastname || ""} a ${status === "acceptée" ? "accepté" : "refusé"} votre demande pour la ressource "${location.resource.name}".`,
+
                     status === "acceptée" ? "success" : "error",
                     "/mes-reservations"
                 );
             }
         } catch (notifError) {
-            console.error("Erreur création notification statut réservation:", notifError);
+            console.error("Erreur notification statut:", notifError);
         }
 
         res.status(200).json({
@@ -245,72 +257,108 @@ export const updateStatusByProvider = async (req, res) => {
     }
 };
 
-
+// ============================
+// ✅ PAIEMENT
+// ============================
 export const payLocation = async (req, res) => {
     try {
         const { locationId, amount } = req.body;
 
         if (!locationId) {
-            return res.status(400).json({ message: "locationId requis" });
+            return res.status(400).json({
+                message: "locationId requis"
+            });
         }
 
         const location = await Location.findById(locationId)
             .populate({
                 path: "resource",
-                populate: { path: "prestataire", select: "firstname lastname email phone" }
+                populate: {
+                    path: "prestataire",
+                    select: "firstname lastname email phone"
+                }
             })
             .populate("organisateur", "firstname lastname email phone")
             .populate("event", "title");
 
         if (!location) {
-            return res.status(404).json({ message: "Location non trouvée" });
-        }
-
-        if (location.status !== "acceptée") {
-            return res.status(400).json({
-                message: "Paiement possible seulement si la réservation est acceptée"
+            return res.status(404).json({
+                message: "Location non trouvée"
             });
         }
 
-        if (location.payer === "payer") {
-            return res.status(400).json({ message: "Déjà payé" });
+        // Paiement possible seulement si acceptée
+        if (location.status !== "acceptée") {
+            return res.status(400).json({
+                message: "Paiement possible seulement si réservation acceptée"
+            });
         }
 
-        // ✅ Mise à jour paiement
-        location.payer = "payer";
-        console.log("STEP 1: paiement validé");
+        // Empêcher double paiement
+        if (location.payer === "payer") {
+            return res.status(400).json({
+                message: "Déjà payé"
+            });
+        }
 
+        // ============================
+        // ✅ VALIDER PAIEMENT
+        // ============================
+        location.payer = "payer";
         location.paymentDate = new Date();
 
-        // ✅ Générer et sauvegarder facture
+        // Génération facture
         const invoicePath = generateInvoice(location, amount);
         location.invoice = invoicePath;
 
         await location.save();
 
-        // ✅ 1. Ajouter la ressource dans ressources_utiliser de l'événement
+        // ============================
+        // ✅ AJOUT RESSOURCE À EVENT
+        // ============================
         await Event.findByIdAndUpdate(
             location.event._id || location.event,
             {
-                $addToSet: { ressources_utiliser: location.resource._id }
+                $addToSet: {
+                    ressources_utiliser: location.resource._id
+                }
             }
         );
 
-        console.log("STEP 2: création dispo");
-        // ✅ 2. Marquer les disponibilités concernées comme indisponibles (satut_disp = false)
-        // ✅ 2. Créer une indisponibilité et l'ajouter à la ressource
+        // ============================
+        // ✅ BLOQUER DISPONIBILITÉ
+        // ============================
         const newDispo = await Dispo.create({
             date_deb: location.dateDebut,
             date_fin: location.dateFin,
             satut_disp: false
-
         });
-        console.log("STEP 3: push availability");
 
         await Resource.findByIdAndUpdate(
             location.resource._id,
-            { $push: { availability: newDispo._id } }
+            {
+                $push: {
+                    availability: newDispo._id
+                }
+            }
         );
+
+        // ============================
+        // ✅ NOTIFICATION PRESTATAIRE
+        // ============================
+        try {
+            if (location.resource?.prestataire) {
+                await createNotification(
+                    location.resource.prestataire._id,
+                    "Paiement confirmé 💰",
+                    `${location.organisateur?.firstname || "Le client"} ${location.organisateur?.lastname || ""} a effectué le paiement pour la ressource "${location.resource.name}".`,
+                    "success",
+                    "/mes-demandes"
+                );
+            }
+        } catch (notifError) {
+            console.error("Erreur notification paiement:", notifError);
+        }
 
         res.status(200).json({
             message: "Paiement confirmé + facture générée",
@@ -324,7 +372,7 @@ export const payLocation = async (req, res) => {
 };
 
 // ============================
-// ✅ ANNULER UNE DEMANDE (organisateur)
+// ✅ ANNULER DEMANDE
 // ============================
 export const deleteLocation = async (req, res) => {
     try {
@@ -335,15 +383,20 @@ export const deleteLocation = async (req, res) => {
         });
 
         if (!location) {
-            return res.status(404).json({ message: "Demande non trouvée ou déjà traitée" });
+            return res.status(404).json({
+                message: "Demande non trouvée ou déjà traitée"
+            });
         }
 
         await location.deleteOne();
 
-        // ✅ NOTIFICATION POUR LE PRESTATAIRE (annulation)
+        // ============================
+        // ✅ NOTIFICATION PRESTATAIRE
+        // ============================
         try {
             const resource = await Resource.findById(location.resource)
                 .populate("prestataire", "firstname lastname");
+
             const organisateur = await User.findById(req.user.id);
 
             if (resource?.prestataire) {
@@ -352,22 +405,26 @@ export const deleteLocation = async (req, res) => {
                     "Demande annulée",
                     `${organisateur?.firstname || "L'organisateur"} ${organisateur?.lastname || ""} a annulé sa demande pour la ressource "${resource.name}".`,
                     "warning",
-                    "/mes-demandes"  // ✅ route prestataire correcte dans App.jsx
+                    "/mes-demandes"
                 );
             }
         } catch (notifError) {
-            console.error("Erreur création notification annulation:", notifError);
+            console.error("Erreur notification annulation:", notifError);
         }
 
-        res.status(200).json({ message: "Demande annulée" });
+        res.status(200).json({
+            message: "Demande annulée"
+        });
+
     } catch (error) {
         console.error("ERREUR deleteLocation:", error);
         res.status(500).json({ message: error.message });
     }
 };
 
-
-
+// ============================
+// ✅ FACTURES PRESTATAIRE
+// ============================
 export const getProviderInvoices = async (req, res) => {
     try {
         const locations = await Location.find({
@@ -380,14 +437,14 @@ export const getProviderInvoices = async (req, res) => {
         .populate("organisateur", "firstname lastname")
         .populate("event", "title");
 
-        // garder فقط les locations liées à ce prestataire
+        // garder uniquement les locations du prestataire
         const filtered = locations.filter(loc => loc.resource);
 
         const documents = filtered.map(loc => ({
             id: loc._id,
             name: `Facture_${loc.event?.title || "event"}.pdf`,
             type: "pdf",
-            size: "—", // optionnel
+            size: "—",
             date: loc.paymentDate,
             status: "validé",
             url: loc.invoice
@@ -399,4 +456,4 @@ export const getProviderInvoices = async (req, res) => {
         console.error("ERREUR getProviderInvoices:", error);
         res.status(500).json({ message: error.message });
     }
-};
+}
