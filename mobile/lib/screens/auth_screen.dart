@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -92,7 +94,7 @@ class _AuthScreenState extends State<AuthScreen> {
       (kIsWeb && _profileImageBytes != null) ||
       (!kIsWeb && _profileImage != null);
 
-  // ─── LOGIN ─────────────────────────────────────────────────────────
+  // ─── LOGIN CORRIGÉ ─────────────────────────────────────────────────────────
   Future<void> _handleLogin() async {
     if (_loginEmailCtrl.text.trim().isEmpty ||
         _loginPasswordCtrl.text.isEmpty) {
@@ -101,35 +103,55 @@ class _AuthScreenState extends State<AuthScreen> {
     }
     setState(() => _isLoading = true);
 
-    final result = await AuthService.login(
-      email: _loginEmailCtrl.text.trim(),
-      password: _loginPasswordCtrl.text,
-    );
-
-    if (result['success']) {
-      final user = result['data']['user'];
-      final token = result['data']['token'];
-
-      _showSnack("✅ Bienvenue ${user['firstname']} !", success: true);
-
-      // 🔥 NAVIGATION AVEC DATA
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeScreen(user: user, token: token),
-        ),
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:5000/api/users/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': _loginEmailCtrl.text.trim(),
+          'password': _loginPasswordCtrl.text,
+        }),
       );
-    } else {
-      final msg = result['message'] ?? "";
-      if (msg.contains('non trouvé')) {
-        _showSnack("❌ Aucun compte trouvé avec cet email");
-      } else if (msg.contains('incorrect')) {
-        _showSnack("❌ Mot de passe incorrect");
-      } else if (msg.contains('attente')) {
-        _showSnack("⏳ Compte en attente de validation");
+
+      print('Login status: ${response.statusCode}');
+      print('Login response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // ✅ Structure correcte selon ton backend
+        final String token = data['token'];
+        final Map<String, dynamic> user = data['user'];
+        
+        _showSnack("✅ Bienvenue ${user['firstname']} !", success: true);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(user: user, token: token),
+          ),
+        );
       } else {
-        _showSnack("❌ ${msg.isNotEmpty ? msg : 'Erreur de connexion'}");
+        final error = jsonDecode(response.body);
+        final msg = error['message'] ?? '';
+        
+        if (response.statusCode == 401) {
+          if (msg.contains('non trouvé')) {
+            _showSnack("❌ Aucun compte trouvé avec cet email");
+          } else if (msg.contains('incorrect')) {
+            _showSnack("❌ Mot de passe incorrect");
+          } else {
+            _showSnack("❌ Email ou mot de passe incorrect");
+          }
+        } else if (response.statusCode == 403 && error['status'] == 'pending') {
+          _showSnack("⏳ Compte en attente de validation par l'administrateur");
+        } else {
+          _showSnack("❌ ${msg.isNotEmpty ? msg : 'Erreur de connexion'}");
+        }
       }
+    } catch (e) {
+      print('Login error: $e');
+      _showSnack("❌ Impossible de se connecter au serveur");
     }
 
     setState(() => _isLoading = false);
