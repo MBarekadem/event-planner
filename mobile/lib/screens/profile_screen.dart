@@ -94,12 +94,15 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _loadStats() async {
     setState(() => _statsLoading = true);
     try {
-      final userId = _user['id'] ?? _user['_id'];
+      final userId = _user['_id'] ?? _user['id'];
       final headers = {'Authorization': 'Bearer ${widget.token}'};
 
+      debugPrint('🔍 userId pour stats : $userId');
+
       final results = await Future.wait([
+        // ✅ Route corrigée
         http.get(
-          Uri.parse('$_baseUrl/api/events/user/$userId'),
+          Uri.parse('$_baseUrl/api/event/user_event/$userId'),
           headers: headers,
         ),
         http.get(
@@ -109,28 +112,45 @@ class _ProfileScreenState extends State<ProfileScreen>
         http.get(Uri.parse('$_baseUrl/api/locations/my'), headers: headers),
       ]);
 
+      debugPrint('📊 Events status: ${results[0].statusCode}');
+      debugPrint('📊 Events body: ${results[0].body}');
+      debugPrint('📊 Favoris status: ${results[1].statusCode}');
+
       if (mounted) {
         setState(() {
           // Événements
           if (results[0].statusCode == 200) {
-            _eventsCount = (json.decode(results[0].body) as List).length;
+            final data = json.decode(results[0].body);
+            // Supporte liste directe ou objet avec clé
+            if (data is List) {
+              _eventsCount = data.length;
+            } else if (data is Map && data['events'] != null) {
+              _eventsCount = (data['events'] as List).length;
+            }
+            debugPrint('✅ Events count : $_eventsCount');
           }
+
           // Favoris
           if (results[1].statusCode == 200) {
-            _favoritesCount = (json.decode(results[1].body) as List).length;
+            final data = json.decode(results[1].body);
+            _favoritesCount = data is List ? data.length : 0;
           }
-          // Factures payées
+
+          // Factures
           if (results[2].statusCode == 200) {
-            final locations = json.decode(results[2].body) as List;
-            _invoicesCount = locations
-                .where((l) => l['payer'] == 'payer')
-                .length;
+            final locations = json.decode(results[2].body);
+            if (locations is List) {
+              _invoicesCount = locations
+                  .where((l) => l['payer'] == 'payer')
+                  .length;
+            }
           }
+
           _statsLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Stats error: $e');
+      debugPrint('❌ Stats error: $e');
       if (mounted) setState(() => _statsLoading = false);
     }
   }
