@@ -51,8 +51,7 @@ router.post("/forgot-password", async (req, res) => {
         pass: "glsc ataw icdj ldws",
       },
     });
-
-    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    const resetUrl = `http://localhost:5000/api/users/reset-password-page/${resetToken}`;
 
     await transporter.sendMail({
       from: `"Event Planner" <eventplanner315@gmail.com>`,
@@ -101,6 +100,74 @@ router.post("/reset-password/:token", async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Erreur serveur" });
   }
+});
+router.get("/reset-password-page/:token", (req, res) => {
+  const { token } = req.params;
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Nouveau mot de passe</title>
+      <style>
+        body { font-family: Arial; max-width: 400px; margin: 60px auto; padding: 20px; }
+        h2 { color: #9C27B0; }
+        input { width: 100%; padding: 12px; margin: 8px 0 16px;
+                border: 1px solid #ddd; border-radius: 8px;
+                box-sizing: border-box; font-size: 14px; }
+        button { width: 100%; padding: 14px;
+                 background: linear-gradient(135deg, #B832C5, #9C27B0);
+                 color: white; border: none; border-radius: 30px;
+                 font-size: 15px; font-weight: bold; cursor: pointer; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .msg { padding: 12px; border-radius: 8px; margin-top: 12px; text-align: center; }
+        .ok  { background: #e8f5e9; color: #2e7d32; }
+        .err { background: #ffebee; color: #c62828; }
+      </style>
+    </head>
+    <body>
+      <h2>🔐 Nouveau mot de passe</h2>
+      <p style="color:#666;font-size:14px">Choisissez un nouveau mot de passe sécurisé.</p>
+      <input type="password" id="p1" placeholder="Nouveau mot de passe" />
+      <input type="password" id="p2" placeholder="Confirmer le mot de passe" />
+      <button id="btn" onclick="reset()">Réinitialiser</button>
+      <div id="msg"></div>
+      <script>
+        async function reset() {
+          const p1 = document.getElementById('p1').value;
+          const p2 = document.getElementById('p2').value;
+          const msg = document.getElementById('msg');
+          const btn = document.getElementById('btn');
+          if (p1.length < 6) {
+            msg.className = 'msg err';
+            msg.textContent = 'Minimum 6 caractères'; return;
+          }
+          if (p1 !== p2) {
+            msg.className = 'msg err';
+            msg.textContent = 'Les mots de passe ne correspondent pas'; return;
+          }
+          btn.disabled = true;
+          btn.textContent = 'En cours...';
+          const res = await fetch('/api/users/reset-password/${token}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: p1 })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            msg.className = 'msg ok';
+            msg.textContent = '✅ Mot de passe modifié ! Retournez sur l\\'application pour vous connecter.';
+          } else {
+            msg.className = 'msg err';
+            msg.textContent = data.message || 'Erreur';
+            btn.disabled = false;
+            btn.textContent = 'Réinitialiser';
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
 });
 
 export default router;
