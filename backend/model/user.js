@@ -36,6 +36,8 @@ const UserSchema = new mongoose.Schema({
 
   },
   locationName: { type: String },
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
   createdAt: { type: Date, default: Date.now },
 });
 UserSchema.index({ location: "2dsphere" });

@@ -10,7 +10,7 @@ import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
+import 'forgot_password_screen.dart';
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
   @override
@@ -321,12 +321,14 @@ class _AuthScreenState extends State<AuthScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
-                      child: const Text(
-                        "Mot de passe oublié ?",
-                        style: TextStyle(color: primary, fontSize: 12),
-                      ),
-                    ),
+  onPressed: () => Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const ForgotPasswordScreen(),
+    ),
+  ),
+  child: const Text("Mot de passe oublié ?"),
+),
                   ),
                   const SizedBox(height: 8),
                   _gradientButton("Se connecter", _handleLogin),

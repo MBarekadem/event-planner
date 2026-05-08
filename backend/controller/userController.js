@@ -341,6 +341,8 @@ export const updateCIN = async (req, res) => {
   }
 };
 
+
+
 export {
   registerUser,
   loginUser,
