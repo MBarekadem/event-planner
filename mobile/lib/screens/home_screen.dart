@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_content_screen.dart';
 import 'profile_screen.dart';
 import 'vendors_screen.dart';
+import 'events_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -15,7 +16,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-
   late final List<Widget> _screens;
 
   @override
@@ -23,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _screens = [
       HomeContentScreen(user: widget.user, token: widget.token),
-      _MyEventsScreen(user: widget.user, token: widget.token),
+      MesEvenementsPage(userId: widget.user['_id'] ?? widget.user['id'] ?? ''),
       VendorsScreen(user: widget.user, token: widget.token),
       ProfileScreen(user: widget.user, token: widget.token),
     ];
@@ -72,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 activeIcon: Icon(Icons.calendar_today),
                 label: 'Événements',
               ),
-              // ← "Prestataires" → "Ressources", icône mise à jour
               BottomNavigationBarItem(
                 icon: Icon(Icons.inventory_2_outlined),
                 activeIcon: Icon(Icons.inventory_2),
@@ -85,71 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Placeholder screens ──────────────────────────────────
-class _MyEventsScreen extends StatelessWidget {
-  final Map<String, dynamic> user;
-  final String token;
-  const _MyEventsScreen({required this.user, required this.token});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F0FF),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF7B2FBE), Color(0xFF9C27B0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(28),
-                  bottomRight: Radius.circular(28),
-                ),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Mes Événements',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
-                  Text('Gérez vos événements',
-                      style: TextStyle(color: Colors.white70, fontSize: 13)),
-                ],
-              ),
-            ),
-            const Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.calendar_today_outlined,
-                        size: 64, color: Colors.grey),
-                    SizedBox(height: 12),
-                    Text('Aucun événement pour le moment',
-                        style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    SizedBox(height: 6),
-                    Text('Créez votre premier événement',
-                        style: TextStyle(color: Colors.grey, fontSize: 13)),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
