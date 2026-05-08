@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,8 +27,13 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late Map<String, dynamic> _user;
-  bool _isLoading = false;
   bool _isSaving = false;
+
+  // Stats dynamiques
+  int _eventsCount = 0;
+  int _favoritesCount = 0;
+  int _invoicesCount = 0;
+  bool _statsLoading = true;
 
   // Edit controllers
   final _firstnameCtrl = TextEditingController();
@@ -39,6 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   // Image
   File? _newImage;
   Uint8List? _newImageBytes;
+  String? _newImageName;
   final ImagePicker _picker = ImagePicker();
 
   late AnimationController _animCtrl;
@@ -50,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.initState();
     _user = Map<String, dynamic>.from(widget.user);
     _syncControllers();
+    _loadStats();
 
     _animCtrl = AnimationController(
       vsync: this,
@@ -82,6 +90,51 @@ class _ProfileScreenState extends State<ProfileScreen>
     super.dispose();
   }
 
+  // ─── STATS DYNAMIQUES ───────────────────────────────────────────────────────
+  Future<void> _loadStats() async {
+    setState(() => _statsLoading = true);
+    try {
+      final userId = _user['id'] ?? _user['_id'];
+      final headers = {'Authorization': 'Bearer ${widget.token}'};
+
+      final results = await Future.wait([
+        http.get(
+          Uri.parse('$_baseUrl/api/events/user/$userId'),
+          headers: headers,
+        ),
+        http.get(
+          Uri.parse('$_baseUrl/api/users/adore/$userId'),
+          headers: headers,
+        ),
+        http.get(Uri.parse('$_baseUrl/api/locations/my'), headers: headers),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          // Événements
+          if (results[0].statusCode == 200) {
+            _eventsCount = (json.decode(results[0].body) as List).length;
+          }
+          // Favoris
+          if (results[1].statusCode == 200) {
+            _favoritesCount = (json.decode(results[1].body) as List).length;
+          }
+          // Factures payées
+          if (results[2].statusCode == 200) {
+            final locations = json.decode(results[2].body) as List;
+            _invoicesCount = locations
+                .where((l) => l['payer'] == 'payer')
+                .length;
+          }
+          _statsLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Stats error: $e');
+      if (mounted) setState(() => _statsLoading = false);
+    }
+  }
+
   // ─── IMAGE AVATAR ───────────────────────────────────────────────────────────
   ImageProvider? get _avatarImage {
     if (kIsWeb && _newImageBytes != null) return MemoryImage(_newImageBytes!);
@@ -101,7 +154,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (img == null) return;
     if (kIsWeb) {
       final bytes = await img.readAsBytes();
-      setState(() => _newImageBytes = bytes);
+      setState(() {
+        _newImageBytes = bytes;
+        _newImageName = img.name;
+      });
     } else {
       setState(() => _newImage = File(img.path));
     }
@@ -125,16 +181,27 @@ class _ProfileScreenState extends State<ProfileScreen>
         request.fields['password'] = _passwordCtrl.text;
       }
 
+      // ✅ Image mobile
       if (!kIsWeb && _newImage != null) {
         request.files.add(
           await http.MultipartFile.fromPath('image', _newImage!.path),
         );
-      } else if (kIsWeb && _newImageBytes != null) {
+      }
+      // ✅ Image web avec contentType correct
+      else if (kIsWeb && _newImageBytes != null) {
+        final name = _newImageName ?? 'profile.jpg';
+        final ext = name.split('.').last.toLowerCase();
+        final mime = ext == 'png'
+            ? 'image/png'
+            : ext == 'webp'
+            ? 'image/webp'
+            : 'image/jpeg';
         request.files.add(
           http.MultipartFile.fromBytes(
             'image',
             _newImageBytes!,
-            filename: 'profile.jpg',
+            filename: name,
+            contentType: MediaType.parse(mime),
           ),
         );
       }
@@ -144,12 +211,21 @@ class _ProfileScreenState extends State<ProfileScreen>
 
       if (response.statusCode == 200) {
         final updated = json.decode(response.body);
+        debugPrint('✅ Updated user: ${json.encode(updated)}'); // ← ajouter
+
+        // ✅ Persister dans SharedPreferences → image + numTel survivent à la reconnexion
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user', json.encode(updated));
+
         setState(() {
           _user = updated;
           _syncControllers();
           _newImage = null;
           _newImageBytes = null;
+          _newImageName = null;
         });
+
+        _passwordCtrl.clear();
         _showSnack('✅ Profil mis à jour !', success: true);
       } else {
         final body = json.decode(response.body);
@@ -179,15 +255,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
               Navigator.pop(context);
-
-              // ✅ SUPPRIMER LES DONNÉES
               final prefs = await SharedPreferences.getInstance();
               await prefs.remove('token');
               await prefs.remove('user');
-
-              // OU : await prefs.clear(); (efface tout)
-
-              // ✅ REDIRECTION
               Navigator.of(
                 context,
               ).pushNamedAndRemoveUntil('/login', (route) => false);
@@ -260,7 +330,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           children: [
-            // Fond gradient + formes décoratives
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -270,7 +339,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
-            // Cercles décoratifs
             Positioned(
               top: -40,
               right: -40,
@@ -295,13 +363,11 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
             ),
-            // Contenu
             SafeArea(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const SizedBox(height: 20),
-                  // Avatar avec bouton edit
                   GestureDetector(
                     onTap: _pickImage,
                     child: Stack(
@@ -400,9 +466,21 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ─── STATS ROW ───────────────────────────────────────────────────────────────
   Widget _buildStatsRow() {
     final stats = [
-      {'label': 'Événements', 'value': '12', 'icon': Icons.event},
-      {'label': 'Favoris', 'value': '8', 'icon': Icons.favorite},
-      {'label': 'Factures', 'value': '5', 'icon': Icons.description},
+      {
+        'label': 'Événements',
+        'value': _statsLoading ? '...' : '$_eventsCount',
+        'icon': Icons.event,
+      },
+      {
+        'label': 'Favoris',
+        'value': _statsLoading ? '...' : '$_favoritesCount',
+        'icon': Icons.favorite,
+      },
+      {
+        'label': 'Factures',
+        'value': _statsLoading ? '...' : '$_invoicesCount',
+        'icon': Icons.description,
+      },
     ];
 
     return Container(
@@ -437,14 +515,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                 children: [
                   Icon(e.value['icon'] as IconData, color: _purple, size: 22),
                   const SizedBox(height: 6),
-                  Text(
-                    e.value['value'] as String,
-                    style: GoogleFonts.playfairDisplay(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E),
-                    ),
-                  ),
+                  _statsLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: _purple,
+                          ),
+                        )
+                      : Text(
+                          e.value['value'] as String,
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1A1A2E),
+                          ),
+                        ),
+                  const SizedBox(height: 2),
                   Text(
                     e.value['label'] as String,
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
@@ -658,7 +746,14 @@ class _ProfileScreenState extends State<ProfileScreen>
           const SizedBox(height: 16),
           _infoRow(Icons.email_outlined, 'Email', _user['email'] ?? '-'),
           _divider(),
-          _infoRow(Icons.phone_outlined, 'Téléphone', _user['numTel'] ?? '-'),
+          // ✅ numTel affiché correctement
+          _infoRow(
+            Icons.phone_outlined,
+            'Téléphone',
+            (_user['numTel'] != null && _user['numTel'].toString().isNotEmpty)
+                ? _user['numTel'].toString()
+                : 'Non renseigné',
+          ),
           _divider(),
           _infoRow(
             Icons.location_on_outlined,

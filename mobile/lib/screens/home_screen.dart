@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'home_content_screen.dart';
 import 'profile_screen.dart';
 import 'vendors_screen.dart';
@@ -16,25 +18,41 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  late final List<Widget> _screens;
+  late Map<String, dynamic> _currentUser; // ← user mutable
 
   @override
   void initState() {
     super.initState();
-    _screens = [
-      HomeContentScreen(user: widget.user, token: widget.token),
-      MesEvenementsPage(userId: widget.user['_id'] ?? widget.user['id'] ?? ''),
-      VendorsScreen(user: widget.user, token: widget.token),
-      ProfileScreen(user: widget.user, token: widget.token),
-    ];
+    _currentUser = Map<String, dynamic>.from(widget.user);
+  }
+
+  // ✅ Recharger le user depuis SharedPreferences à chaque fois qu'on navigue vers Profil
+  Future<void> _refreshUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('user');
+    if (raw != null && mounted) {
+      setState(() {
+        _currentUser = json.decode(raw);
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Screens construits dynamiquement avec _currentUser à jour
+    final screens = [
+      HomeContentScreen(user: _currentUser, token: widget.token),
+      MesEvenementsPage(
+        userId: _currentUser['_id'] ?? _currentUser['id'] ?? '',
+      ),
+      VendorsScreen(user: _currentUser, token: widget.token),
+      ProfileScreen(user: _currentUser, token: widget.token),
+    ];
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: _screens,
+        children: screens,
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -50,7 +68,11 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SafeArea(
           child: BottomNavigationBar(
             currentIndex: _currentIndex,
-            onTap: (index) => setState(() => _currentIndex = index),
+            onTap: (index) async {
+              // ✅ Rafraîchir le user avant d'afficher le profil
+              if (index == 3) await _refreshUser();
+              setState(() => _currentIndex = index);
+            },
             type: BottomNavigationBarType.fixed,
             selectedItemColor: const Color(0xFF9C27B0),
             unselectedItemColor: Colors.grey[400],

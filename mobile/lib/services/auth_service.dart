@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http_parser/http_parser.dart';
 
 class AuthService {
   static String get baseUrl {
@@ -49,11 +50,18 @@ class AuthService {
       }
 
       if (imageBytes != null && imageName != null) {
+        final ext = imageName!.split('.').last.toLowerCase();
+        final mime = ext == 'png'
+            ? 'image/png'
+            : ext == 'webp'
+            ? 'image/webp'
+            : 'image/jpeg';
         request.files.add(
           http.MultipartFile.fromBytes(
             'image',
-            imageBytes,
-            filename: imageName,
+            imageBytes!,
+            filename: imageName!,
+            contentType: MediaType.parse(mime), // ← force le bon type
           ),
         );
       }

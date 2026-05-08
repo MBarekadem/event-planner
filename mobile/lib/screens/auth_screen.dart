@@ -118,11 +118,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // ✅ Structure correcte selon ton backend
         final String token = data['token'];
         final Map<String, dynamic> user = data['user'];
-        
+
         _showSnack("✅ Bienvenue ${user['firstname']} !", success: true);
 
         Navigator.pushReplacement(
@@ -134,7 +134,7 @@ class _AuthScreenState extends State<AuthScreen> {
       } else {
         final error = jsonDecode(response.body);
         final msg = error['message'] ?? '';
-        
+
         if (response.statusCode == 401) {
           if (msg.contains('non trouvé')) {
             _showSnack("❌ Aucun compte trouvé avec cet email");
@@ -542,7 +542,10 @@ class _AuthScreenState extends State<AuthScreen> {
           options: MapOptions(
             initialCenter: _selectedPosition,
             initialZoom: 13,
-            onTap: (_, point) => setState(() => _selectedPosition = point),
+            onTap: (_, point) {
+              setState(() => _selectedPosition = point);
+              _mapController.move(point, _mapController.camera.zoom);
+            },
           ),
           children: [
             TileLayer(

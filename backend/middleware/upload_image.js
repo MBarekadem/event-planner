@@ -7,10 +7,7 @@ const storage = multer.diskStorage({
       cb(null, "uploads/patentes/");
     } else if (file.fieldname === "termsFile") {
       cb(null, "uploads/contracts/");
-    }
-
-
-    else {
+    } else {
       cb(null, "uploads/");
     }
   },
@@ -20,22 +17,42 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
+  console.log("📁 fieldname:", file.fieldname);
+  console.log("📁 mimetype reçu:", file.mimetype);
   if (file.fieldname === "image") {
-    const allowed = /jpg|jpeg|png|webp/;
-    return allowed.test(file.mimetype) ? cb(null, true) : cb("Images seulement !");
+    const allowed = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "application/octet-stream"  // ← Flutter web
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Type non supporté: ${file.mimetype}`), false);
+    }
+    return;
   }
-
-
   if (file.fieldname === "patente") {
-    const allowed = /jpg|jpeg|png|webp|pdf/;
-    return allowed.test(file.mimetype) ? cb(null, true) : cb("PDF ou image seulement !");
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("PDF ou image seulement !"), false);
+    }
+    return;
   }
+
   if (file.fieldname === "termsFile") {
-    const allowed = /pdf/;
-    return allowed.test(file.mimetype)
-      ? cb(null, true)
-      : cb("Seulement PDF pour le contrat !");
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Seulement PDF pour le contrat !"), false);
+    }
+    return;
   }
+
   cb(null, true);
 };
 

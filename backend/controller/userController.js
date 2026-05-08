@@ -58,6 +58,9 @@ const registerUser = async (req, res) => {
                   lat,
                   lon: lng,
                   format: "json"
+                },
+                headers: {
+                  "User-Agent": "YallaEvents/1.0 (yallaevents@gmail.com)"
                 }
               }
             );
@@ -106,7 +109,7 @@ const registerUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.log(error);
+    console.log("Erreur complète:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -148,7 +151,7 @@ const loginUser = async (req, res) => {
         lastname: user.lastname,
         email: user.email,
         role: user.role,
-        
+        numTel: user.numTel,
         image: user.image,
         locationName: user.locationName,
         status: user.status
@@ -226,6 +229,9 @@ const updateUser = async (req, res) => {
                 lat,
                 lon: lng,
                 format: "json"
+              },
+              headers: {
+                "User-Agent": "YallaEvents/1.0 (yallaevents@gmail.com)"
               }
             }
           );
