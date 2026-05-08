@@ -5,19 +5,22 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // ════════════════════════════════════════════════
-// MODÈLE
+// MODÈLE — corrigé pour correspondre au schéma MongoDB
 // ════════════════════════════════════════════════
 
 class Evenement {
   final String id;
   final String titre;
   final String description;
+  // Schéma : ["Mariage","Conference","Anniversaire","Seminaire","autre"]
   final String categorie;
   final String lieu;
+  // Schéma : ["public","privé"]
   final String type;
   final DateTime dateDebut;
   final DateTime dateFin;
   final int nombreParticipants;
+  // Schéma : ["en attente","en cours","terminé"]
   final String statut;
 
   Evenement({
@@ -44,57 +47,65 @@ class Evenement {
       dateDebut: DateTime.tryParse(json['dateDebut'] ?? '') ?? DateTime.now(),
       dateFin: DateTime.tryParse(json['dateFin'] ?? '') ?? DateTime.now(),
       nombreParticipants: json['nombreParticipants'] ?? 0,
-      statut: json['status'] ?? 'en_attente',
+      statut: json['status'] ?? 'en attente',
     );
   }
 }
 
 // ════════════════════════════════════════════════
-// SERVICE API - CORRIGÉ
+// SERVICE API
+// CORRECTIONS :
+//   1. baseUrl → /api/event  (comme dans server.js)
+//   2. _getUserData lit depuis SharedPreferences (clés 'token' et 'user')
+//      → Assurez-vous que votre page de login sauvegarde avec ces mêmes clés
+//   3. La route user_event correspond à router.get("/user_event/:id")
 // ════════════════════════════════════════════════
 
 class EvenementService {
+  // ✅ Correspond à : app.use("/api/event", eventRoutes) dans server.js
   static const String baseUrl = 'http://192.168.100.25:5000/api/event';
 
+  /// Lit le token et l'userId depuis SharedPreferences.
+  /// IMPORTANT : votre page de login DOIT sauvegarder avec :
+  ///   prefs.setString('token', token);
+  ///   prefs.setString('user', jsonEncode(userObject));
+  /// où userObject contient au moins {'_id': '...'} ou {'id': '...'}
   static Future<Map<String, dynamic>?> _getUserData() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     final userString = prefs.getString('user');
-    
-    print('🔍 Vérification SharedPreferences:');
-    print('   - token: ${token != null ? "PRÉSENT" : "ABSENT"}');
-    print('   - userString: ${userString != null ? "PRÉSENT" : "ABSENT"}');
-    
+
+    debugPrint('🔍 SharedPreferences → token: ${token != null ? "OK" : "ABSENT"} | user: ${userString != null ? "OK" : "ABSENT"}');
+
     if (token == null || userString == null) {
-      print('❌ Token ou user manquant');
+      debugPrint('❌ Token ou user manquant dans SharedPreferences');
       return null;
     }
-    
+
     try {
-      final user = jsonDecode(userString);
-      return {
-        'token': token,
-        'userId': user['_id'] ?? user['id'],
-      };
+      final user = jsonDecode(userString) as Map<String, dynamic>;
+      // Supporte '_id' (MongoDB) et 'id' (si le backend renomme)
+      final userId = user['_id'] ?? user['id'] ?? '';
+      debugPrint('✅ userId récupéré : $userId');
+      return {'token': token, 'userId': userId};
     } catch (e) {
-      print('❌ Erreur décodage user: $e');
+      debugPrint('❌ Erreur décodage user JSON : $e');
       return null;
     }
   }
 
+  // ─────────────────────────────────────────────
+  // GET /api/event/user_event/:id  (verifyToken)
+  // ─────────────────────────────────────────────
   static Future<List<Evenement>> obtenirEvenementsUtilisateur(String userId) async {
     final userData = await _getUserData();
-    
-    if (userData == null) {
-      throw Exception('Veuillez vous reconnecter');
-    }
-    
-    final token = userData['token'];
+    if (userData == null) throw Exception('Session introuvable — veuillez vous reconnecter.');
+
+    final token = userData['token'] as String;
+    // ✅ Route exacte du backend : router.get("/user_event/:id", verifyToken, get_Event_by_user)
     final url = '$baseUrl/user_event/$userId';
-    
-    print('🌐 Appel API: $url');
-    print('🔑 Token envoyé: ${token.substring(0, token.length > 20 ? 20 : token.length)}...');
-    
+    debugPrint('🌐 GET $url');
+
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -102,40 +113,46 @@ class EvenementService {
         'Content-Type': 'application/json',
       },
     );
-    
-    print('📡 Statut: ${response.statusCode}');
-    
+
+    debugPrint('📡 Statut : ${response.statusCode}');
+
     if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      print('✅ ${data.length} événements chargés');
-      return data.map((e) => Evenement.fromJson(e)).toList();
+      final List data = jsonDecode(response.body) as List;
+      debugPrint('✅ ${data.length} événement(s) chargé(s)');
+      return data.map((e) => Evenement.fromJson(e as Map<String, dynamic>)).toList();
     } else if (response.statusCode == 401) {
-      throw Exception('Session expirée. Veuillez vous reconnecter.');
+      throw Exception('Session expirée — veuillez vous reconnecter.');
+    } else if (response.statusCode == 404) {
+      // Route introuvable → vérifier baseUrl et le paramètre id
+      throw Exception('Ressource introuvable (404). Vérifiez l\'URL : $url');
     } else {
-      throw Exception('Erreur ${response.statusCode}: ${response.body}');
+      throw Exception('Erreur ${response.statusCode} : ${response.body}');
     }
   }
 
+  // ─────────────────────────────────────────────
+  // POST /api/event/addEvent  (verifyToken)
+  // Valeurs respectant les enums du schéma MongoDB :
+  //   category : "Mariage" | "Conference" | "Anniversaire" | "Seminaire" | "autre"
+  //   type     : "public"  | "privé"
+  //   status   : (géré côté backend, défaut "en attente")
+  // ─────────────────────────────────────────────
   static Future<Evenement> creerEvenement({
     required String titre,
     required String description,
-    required String categorie,
+    required String categorie,   // doit matcher l'enum backend
     required String lieu,
-    required String type,
+    required String type,         // "public" ou "privé"
     required DateTime dateDebut,
     required DateTime dateFin,
     required int nombreParticipants,
   }) async {
     final userData = await _getUserData();
-    
-    if (userData == null) {
-      throw Exception('Veuillez vous reconnecter');
-    }
-    
-    final token = userData['token'];
-    
-    print('🌐 Création événement: $baseUrl/addEvent');
-    
+    if (userData == null) throw Exception('Session introuvable — veuillez vous reconnecter.');
+
+    final token = userData['token'] as String;
+    debugPrint('🌐 POST $baseUrl/addEvent');
+
     final response = await http.post(
       Uri.parse('$baseUrl/addEvent'),
       headers: {
@@ -145,41 +162,88 @@ class EvenementService {
       body: jsonEncode({
         'title': titre,
         'description': description,
-        'category': categorie,
+        'category': categorie,           // ex: "Mariage" (avec majuscule)
         'lieu': lieu,
-        'type': type,
+        'type': type,                    // "public" ou "privé"
         'dateDebut': dateDebut.toIso8601String(),
         'dateFin': dateFin.toIso8601String(),
         'nombreParticipants': nombreParticipants,
       }),
     );
-    
-    print('📡 Statut création: ${response.statusCode}');
-    
+
+    debugPrint('📡 Statut création : ${response.statusCode}');
+
     if (response.statusCode == 201) {
-      return Evenement.fromJson(jsonDecode(response.body));
+      return Evenement.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
     } else if (response.statusCode == 401) {
-      throw Exception('Session expirée. Veuillez vous reconnecter.');
+      throw Exception('Session expirée — veuillez vous reconnecter.');
+    } else {
+      throw Exception('Erreur lors de la création : ${response.body}');
     }
-    throw Exception('Erreur lors de la création : ${response.body}');
   }
 
+  // ─────────────────────────────────────────────
+  // DELETE /api/event/dell_event/:id  (verifyToken)
+  // ─────────────────────────────────────────────
   static Future<void> supprimerEvenement(String id) async {
     final userData = await _getUserData();
-    
-    if (userData == null) {
-      throw Exception('Veuillez vous reconnecter');
-    }
-    
-    final token = userData['token'];
-    
+    if (userData == null) throw Exception('Session introuvable — veuillez vous reconnecter.');
+
+    final token = userData['token'] as String;
+    final url = '$baseUrl/dell_event/$id';
+    debugPrint('🌐 DELETE $url');
+
     final response = await http.delete(
-      Uri.parse('$baseUrl/dell_event/$id'),
+      Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
-    
+
     if (response.statusCode == 401) {
-      throw Exception('Session expirée. Veuillez vous reconnecter.');
+      throw Exception('Session expirée — veuillez vous reconnecter.');
+    } else if (response.statusCode == 404) {
+      throw Exception('Événement introuvable (404).');
+    }
+    // 200 → OK
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// HELPER — à appeler depuis votre page de LOGIN après succès API
+// Exemple d'utilisation :
+//   await AuthStorage.sauvegarder(token: resp['token'], user: resp['user']);
+// ════════════════════════════════════════════════════════════════════
+
+class AuthStorage {
+  /// Sauvegarde le token et l'objet user dans SharedPreferences.
+  /// Appelez cette méthode dans votre page login après une connexion réussie.
+  static Future<void> sauvegarder({
+    required String token,
+    required Map<String, dynamic> user,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    await prefs.setString('user', jsonEncode(user));
+    debugPrint('💾 Auth sauvegardée → userId: ${user['_id'] ?? user['id']}');
+  }
+
+  /// Supprime les données d'authentification (logout).
+  static Future<void> effacer() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user');
+    debugPrint('🗑️ Auth effacée');
+  }
+
+  /// Récupère l'userId stocké (utile pour passer à MesEvenementsPage).
+  static Future<String?> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userString = prefs.getString('user');
+    if (userString == null) return null;
+    try {
+      final user = jsonDecode(userString) as Map<String, dynamic>;
+      return user['_id'] ?? user['id'];
+    } catch (_) {
+      return null;
     }
   }
 }
@@ -326,19 +390,11 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Mes Événements',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text('Mes Événements',
+              style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
           SizedBox(height: 4),
-          Text(
-            'Gérez vos événements à venir',
-            style: TextStyle(color: Colors.white70, fontSize: 14),
-          ),
+          Text('Gérez vos événements à venir',
+              style: TextStyle(color: Colors.white70, fontSize: 14)),
         ],
       ),
     );
@@ -350,13 +406,7 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          )
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, 4))],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -383,25 +433,13 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
       children: [
         GestureDetector(
           onTap: _moisPrecedent,
-          child: const Padding(
-            padding: EdgeInsets.all(8),
-            child: Icon(Icons.chevron_left, color: _violet, size: 26),
-          ),
+          child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.chevron_left, color: _violet, size: 26)),
         ),
-        Text(
-          _capitaliser(nomMois),
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F1F2E),
-          ),
-        ),
+        Text(_capitaliser(nomMois),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E))),
         GestureDetector(
           onTap: _moisSuivant,
-          child: const Padding(
-            padding: EdgeInsets.all(8),
-            child: Icon(Icons.chevron_right, color: _violet, size: 26),
-          ),
+          child: const Padding(padding: EdgeInsets.all(8), child: Icon(Icons.chevron_right, color: _violet, size: 26)),
         ),
       ],
     );
@@ -410,17 +448,9 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
   Widget _buildEnteteSemaine() {
     const jours = ['Di', 'Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa'];
     return Row(
-      children: jours
-          .map((j) => Expanded(
-                child: Center(
-                  child: Text(j,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF9CA3AF))),
-                ),
-              ))
-          .toList(),
+      children: jours.map((j) => Expanded(
+        child: Center(child: Text(j, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF9CA3AF)))),
+      )).toList(),
     );
   }
 
@@ -436,9 +466,7 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
           children: List.generate(7, (col) {
             final index = semaine * 7 + col;
             final jour = index - decalage + 1;
-            if (jour < 1 || jour > dernierJour.day) {
-              return const Expanded(child: SizedBox(height: 44));
-            }
+            if (jour < 1 || jour > dernierJour.day) return const Expanded(child: SizedBox(height: 44));
             final date = DateTime(_moisCourant.year, _moisCourant.month, jour);
             return Expanded(child: _buildCaseJour(date));
           }),
@@ -459,39 +487,23 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: estSelectionne
-              ? _violet
-              : estAujourdhui
-                  ? _violetClair
-                  : Colors.transparent,
+          color: estSelectionne ? _violet : estAujourdhui ? _violetClair : Colors.transparent,
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Text(
-              '${date.day}',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: (estAujourdhui || estSelectionne)
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-                color: estSelectionne
-                    ? Colors.white
-                    : estAujourdhui
-                        ? _violet
-                        : const Color(0xFF374151),
-              ),
-            ),
+            Text('${date.day}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: (estAujourdhui || estSelectionne) ? FontWeight.bold : FontWeight.normal,
+                  color: estSelectionne ? Colors.white : estAujourdhui ? _violet : const Color(0xFF374151),
+                )),
             if (aEvenements && !estSelectionne)
               Positioned(
                 bottom: 6,
                 child: Container(
-                  width: 5,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _violet.withOpacity(0.7),
-                  ),
+                  width: 5, height: 5,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: _violet.withOpacity(0.7)),
                 ),
               ),
           ],
@@ -502,12 +514,7 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
 
   Widget _buildSectionEvenements() {
     if (_chargement) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(40),
-          child: CircularProgressIndicator(color: _violet),
-        ),
-      );
+      return const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: _violet)));
     }
     if (_erreur != null) {
       return Center(
@@ -519,10 +526,7 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
               const SizedBox(height: 8),
               Text(_erreur!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent)),
               const SizedBox(height: 8),
-              TextButton(
-                onPressed: _chargerEvenements,
-                child: const Text('Réessayer', style: TextStyle(color: _violet)),
-              ),
+              TextButton(onPressed: _chargerEvenements, child: const Text('Réessayer', style: TextStyle(color: _violet))),
             ],
           ),
         ),
@@ -538,21 +542,14 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Événements à venir',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E)),
-              ),
-              Text(
-                '${liste.length} Événement${liste.length > 1 ? 's' : ''}',
-                style: const TextStyle(color: _violet, fontWeight: FontWeight.w600, fontSize: 14),
-              ),
+              const Text('Événements à venir',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E))),
+              Text('${liste.length} Événement${liste.length > 1 ? 's' : ''}',
+                  style: const TextStyle(color: _violet, fontWeight: FontWeight.w600, fontSize: 14)),
             ],
           ),
           const SizedBox(height: 16),
-          if (liste.isEmpty)
-            _buildAucunEvenement()
-          else
-            ...liste.map((e) => _buildCarteEvenement(e)),
+          if (liste.isEmpty) _buildAucunEvenement() else ...liste.map((e) => _buildCarteEvenement(e)),
         ],
       ),
     );
@@ -594,10 +591,7 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(ev.titre,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E))),
-              ),
+              Expanded(child: Text(ev.titre, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E)))),
               const SizedBox(width: 8),
               _buildBadgeStatut(ev.statut),
             ],
@@ -608,7 +602,8 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
           _buildInfoLigne(Icons.location_on_outlined, ev.lieu),
           const SizedBox(height: 5),
           _buildInfoLigne(Icons.people_outline, '${ev.nombreParticipants} participants'),
-          if (ev.type == 'prive') ...[
+          // ✅ Corrigé : l'enum backend utilise "privé" avec accent
+          if (ev.type == 'privé') ...[
             const SizedBox(height: 5),
             _buildInfoLigne(Icons.lock_outline, 'Événement privé'),
           ],
@@ -622,9 +617,7 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
       children: [
         Icon(icone, size: 14, color: const Color(0xFF9CA3AF)),
         const SizedBox(width: 6),
-        Expanded(
-          child: Text(texte, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), overflow: TextOverflow.ellipsis),
-        ),
+        Expanded(child: Text(texte, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), overflow: TextOverflow.ellipsis)),
       ],
     );
   }
@@ -634,22 +627,20 @@ class _MesEvenementsPageState extends State<MesEvenementsPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(color: cfg['fond'] as Color, borderRadius: BorderRadius.circular(20)),
-      child: Text(
-        cfg['label'] as String,
-        style: TextStyle(color: cfg['texte'] as Color, fontSize: 11, fontWeight: FontWeight.w600),
-      ),
+      child: Text(cfg['label'] as String,
+          style: TextStyle(color: cfg['texte'] as Color, fontSize: 11, fontWeight: FontWeight.w600)),
     );
   }
 
+  /// ✅ Corrigé pour correspondre aux enums du schéma MongoDB :
+  ///    ["en attente", "en cours", "terminé"]
   Map<String, dynamic> _configStatut(String s) {
     switch (s) {
-      case 'confirme':
-        return {'fond': const Color(0xFFD1FAE5), 'texte': const Color(0xFF065F46), 'label': 'Confirmé'};
-      case 'planification':
-        return {'fond': const Color(0xFFDBEAFE), 'texte': const Color(0xFF1E40AF), 'label': 'Planification'};
-      case 'annule':
-        return {'fond': const Color(0xFFFEE2E2), 'texte': const Color(0xFF991B1B), 'label': 'Annulé'};
-      default:
+      case 'en cours':
+        return {'fond': const Color(0xFFD1FAE5), 'texte': const Color(0xFF065F46), 'label': 'En cours'};
+      case 'terminé':
+        return {'fond': const Color(0xFFDBEAFE), 'texte': const Color(0xFF1E40AF), 'label': 'Terminé'};
+      default: // 'en attente'
         return {'fond': const Color(0xFFFEF3C7), 'texte': const Color(0xFF92400E), 'label': 'En attente'};
     }
   }
@@ -686,19 +677,20 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
   final _lieuCtrl = TextEditingController();
   final _nbPartCtrl = TextEditingController();
 
-  String _typeEvenement = 'public';
-  String _categorie = 'mariage';
+  // ✅ Valeurs initiales correspondent exactement aux enums MongoDB
+  String _typeEvenement = 'public';     // enum: ["public", "privé"]
+  String _categorie = 'Mariage';        // enum: ["Mariage","Conference","Anniversaire","Seminaire","autre"]
   DateTime _dateDebut = DateTime.now().add(const Duration(days: 1));
   DateTime _dateFin = DateTime.now().add(const Duration(days: 1, hours: 3));
   bool _enChargement = false;
 
+  /// ✅ Labels et valeurs correspondent exactement aux enums du schéma MongoDB
   final List<Map<String, dynamic>> _categories = [
-    {'valeur': 'mariage', 'label': 'Mariage', 'icone': Icons.favorite_outline},
-    {'valeur': 'entreprise', 'label': 'Entreprise', 'icone': Icons.business_outlined},
-    {'valeur': 'anniversaire', 'label': 'Anniversaire', 'icone': Icons.cake_outlined},
-    {'valeur': 'conference', 'label': 'Conférence', 'icone': Icons.mic_outlined},
-    {'valeur': 'soiree', 'label': 'Soirée', 'icone': Icons.nightlife_outlined},
-    {'valeur': 'autre', 'label': 'Autre', 'icone': Icons.event_outlined},
+    {'valeur': 'Mariage',      'label': 'Mariage',     'icone': Icons.favorite_outline},
+    {'valeur': 'Conference',   'label': 'Conférence',  'icone': Icons.mic_outlined},
+    {'valeur': 'Anniversaire', 'label': 'Anniversaire','icone': Icons.cake_outlined},
+    {'valeur': 'Seminaire',    'label': 'Séminaire',   'icone': Icons.business_outlined},
+    {'valeur': 'autre',        'label': 'Autre',       'icone': Icons.event_outlined},
   ];
 
   @override
@@ -738,9 +730,7 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
     setState(() {
       if (estDebut) {
         _dateDebut = complet;
-        if (_dateFin.isBefore(_dateDebut)) {
-          _dateFin = _dateDebut.add(const Duration(hours: 2));
-        }
+        if (_dateFin.isBefore(_dateDebut)) _dateFin = _dateDebut.add(const Duration(hours: 2));
       } else {
         _dateFin = complet;
       }
@@ -754,9 +744,9 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
       final nouvelEvenement = await EvenementService.creerEvenement(
         titre: _titreCtrl.text.trim(),
         description: _descCtrl.text.trim(),
-        categorie: _categorie,
+        categorie: _categorie,          // ex: "Mariage"
         lieu: _lieuCtrl.text.trim(),
-        type: _typeEvenement,
+        type: _typeEvenement,           // "public" ou "privé"
         dateDebut: _dateDebut,
         dateFin: _dateFin,
         nombreParticipants: int.tryParse(_nbPartCtrl.text) ?? 0,
@@ -764,25 +754,25 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
       widget.onCreer(nouvelEvenement);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 8), Text('Événement créé avec succès !')]),
-            backgroundColor: Color(0xFF059669),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Row(children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Événement créé avec succès !'),
+          ]),
+          backgroundColor: Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+        ));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString()),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+        ));
       }
     } finally {
       if (mounted) setState(() => _enChargement = false);
@@ -803,18 +793,13 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: Column(
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
-                  ),
-                ),
+                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Nouvel événement', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E))),
+                    const Text('Nouvel événement',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1F1F2E))),
                     GestureDetector(
                       onTap: () => Navigator.pop(context),
                       child: Container(
@@ -864,25 +849,21 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _label('Date de début *'),
-                              _buildBoutonDate(_dateDebut, () => _choisirDate(estDebut: true)),
-                            ],
-                          ),
-                        ),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Date de début *'),
+                            _buildBoutonDate(_dateDebut, () => _choisirDate(estDebut: true)),
+                          ],
+                        )),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _label('Date de fin *'),
-                              _buildBoutonDate(_dateFin, () => _choisirDate(estDebut: false)),
-                            ],
-                          ),
-                        ),
+                        Expanded(child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Date de fin *'),
+                            _buildBoutonDate(_dateFin, () => _choisirDate(estDebut: false)),
+                          ],
+                        )),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -981,7 +962,8 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
               children: [
                 Icon(cat['icone'] as IconData, size: 14, color: actif ? Colors.white : const Color(0xFF6B7280)),
                 const SizedBox(width: 6),
-                Text(cat['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: actif ? Colors.white : const Color(0xFF6B7280))),
+                Text(cat['label'] as String,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: actif ? Colors.white : const Color(0xFF6B7280))),
               ],
             ),
           ),
@@ -993,9 +975,11 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
   Widget _buildChoixType() {
     return Row(
       children: [
+        // ✅ "public" correspond à l'enum MongoDB
         Expanded(child: _carteType('public', 'Public', Icons.public_outlined)),
         const SizedBox(width: 12),
-        Expanded(child: _carteType('prive', 'Privé', Icons.lock_outline)),
+        // ✅ "privé" avec accent correspond à l'enum MongoDB ["public","privé"]
+        Expanded(child: _carteType('privé', 'Privé', Icons.lock_outline)),
       ],
     );
   }
@@ -1043,9 +1027,7 @@ class _FormulaireEvenementState extends State<FormulaireEvenement> {
           children: [
             const Icon(Icons.calendar_today_outlined, size: 15, color: Color(0xFF9CA3AF)),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF374151)), overflow: TextOverflow.ellipsis),
-            ),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF374151)), overflow: TextOverflow.ellipsis)),
           ],
         ),
       ),

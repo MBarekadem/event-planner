@@ -6,13 +6,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
-import '../services/auth_service.dart';
-import 'home_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
+import 'home_screen.dart';
 import 'forgot_password_screen.dart';
+
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
+
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
@@ -94,7 +97,7 @@ class _AuthScreenState extends State<AuthScreen> {
       (kIsWeb && _profileImageBytes != null) ||
       (!kIsWeb && _profileImage != null);
 
-  // ─── LOGIN CORRIGÉ ─────────────────────────────────────────────────────────
+  // ─── LOGIN CORRIGÉ AVEC SAUVEGARDE ─────────────────────────────────
   Future<void> _handleLogin() async {
     if (_loginEmailCtrl.text.trim().isEmpty ||
         _loginPasswordCtrl.text.isEmpty) {
@@ -105,7 +108,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:5000/api/users/login'),
+        Uri.parse('http://192.168.100.25:5000/api/users/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': _loginEmailCtrl.text.trim(),
@@ -118,10 +121,11 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        // ✅ Structure correcte selon ton backend
         final String token = data['token'];
         final Map<String, dynamic> user = data['user'];
+
+        // ✅ Sauvegarde dans SharedPreferences
+        await AuthStorage.sauvegarder(token: token, user: user);
 
         _showSnack("✅ Bienvenue ${user['firstname']} !", success: true);
 
@@ -290,7 +294,6 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ],
           ),
-
           Transform.translate(
             offset: const Offset(0, -30),
             child: ClipPath(
@@ -298,7 +301,6 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Container(height: 80, color: const Color(0xFFA746AF)),
             ),
           ),
-
           Transform.translate(
             offset: const Offset(0, -35),
             child: Container(
@@ -321,14 +323,14 @@ class _AuthScreenState extends State<AuthScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-  onPressed: () => Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const ForgotPasswordScreen(),
-    ),
-  ),
-  child: const Text("Mot de passe oublié ?"),
-),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordScreen(),
+                        ),
+                      ),
+                      child: const Text("Mot de passe oublié ?"),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   _gradientButton("Se connecter", _handleLogin),
@@ -436,9 +438,7 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 14),
-
                   // ── Nom / Prénom ──
                   Row(
                     children: [
@@ -475,7 +475,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     controller: _passwordCtrl,
                   ),
                   const SizedBox(height: 14),
-
                   // ── Localisation ──
                   Row(
                     children: [
@@ -506,7 +505,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: 8),
                   _realMap(),
-
                   const SizedBox(height: 14),
                   _gradientButton("Créer mon compte", _handleRegister),
                   const SizedBox(height: 14),
@@ -692,6 +690,55 @@ class _AuthScreenState extends State<AuthScreen> {
         ],
       ),
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUTH STORAGE - AJOUTER CETTE CLASSE
+// ═══════════════════════════════════════════════════════════════════════
+
+class AuthStorage {
+  static Future<void> sauvegarder({
+    required String token,
+    required Map<String, dynamic> user,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', token);
+    await prefs.setString('user', jsonEncode(user));
+    debugPrint('💾 Auth sauvegardée → userId: ${user['_id'] ?? user['id']}');
+  }
+
+  static Future<void> effacer() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user');
+    debugPrint('🗑️ Auth effacée');
+  }
+
+  static Future<Map<String, dynamic>?> getAuthData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final userString = prefs.getString('user');
+    
+    if (token == null || userString == null) {
+      debugPrint('❌ Token ou user manquant');
+      return null;
+    }
+    
+    try {
+      final user = jsonDecode(userString) as Map<String, dynamic>;
+      final userId = user['_id'] ?? user['id'] ?? '';
+      debugPrint('✅ Auth data récupérée - userId: $userId');
+      return {'token': token, 'userId': userId, 'user': user};
+    } catch (e) {
+      debugPrint('❌ Erreur décodage: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> getUserId() async {
+    final authData = await getAuthData();
+    return authData?['userId'] as String?;
   }
 }
 
