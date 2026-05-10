@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'mes_reservations_page.dart';
+
 class ResourceDetailPage extends StatefulWidget {
   final String resourceId;
   final Map<String, dynamic> user;
@@ -199,7 +201,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       return (_resource?['price'] ?? 0) * _productQuantity.toDouble();
     }
     return _selectedTimes.fold(
-        0.0, (sum, s) => sum + (s['price'] as num).toDouble());
+      0.0,
+      (sum, s) => sum + (s['price'] as num).toDouble(),
+    );
   }
 
   void _addToCart() {
@@ -213,8 +217,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       cartKey = '${_resource['_id']}__produit__qty$_productQuantity';
       final existing = List<dynamic>.from(_cartItems);
       // Si le produit existe déjà, mettre à jour la quantité
-      final existingIndex =
-          existing.indexWhere((i) => i['resourceId'] == _resource['_id'] && i['type'] == 'produit');
+      final existingIndex = existing.indexWhere(
+        (i) => i['resourceId'] == _resource['_id'] && i['type'] == 'produit',
+      );
       if (existingIndex != -1) {
         final newQty =
             (existing[existingIndex]['quantity'] ?? 1) + _productQuantity;
@@ -226,7 +231,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
         _saveCart(existing);
         setState(() => _addedToCart = true);
         Future.delayed(
-            const Duration(seconds: 2), () => setState(() => _addedToCart = false));
+          const Duration(seconds: 2),
+          () => setState(() => _addedToCart = false),
+        );
         _showCartSnack('Quantité mise à jour dans le panier !');
         return;
       }
@@ -257,12 +264,14 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             : _resource['price'],
         'selectedDate': _selectedDate?.toIso8601String(),
         'selectedTimes': _selectedTimes
-            .map((s) => {
-                  'display': s['display'],
-                  'start': (s['start'] as DateTime).toIso8601String(),
-                  'end': (s['end'] as DateTime).toIso8601String(),
-                  'price': s['price'],
-                })
+            .map(
+              (s) => {
+                'display': s['display'],
+                'start': (s['start'] as DateTime).toIso8601String(),
+                'end': (s['end'] as DateTime).toIso8601String(),
+                'price': s['price'],
+              },
+            )
             .toList(),
       };
     }
@@ -276,7 +285,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     _saveCart(existing);
     setState(() => _addedToCart = true);
     Future.delayed(
-        const Duration(seconds: 2), () => setState(() => _addedToCart = false));
+      const Duration(seconds: 2),
+      () => setState(() => _addedToCart = false),
+    );
     _showCartSnack('Ajouté au panier !');
   }
 
@@ -286,13 +297,15 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   }
 
   void _showCartSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: _purple,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      duration: const Duration(seconds: 2),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: _purple,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _submitComment() async {
@@ -330,17 +343,14 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     try {
       final media = _resource['media'] as List?;
       if (media != null) {
-        return media
-            .expand((m) => (m['img_vd'] as List? ?? []))
-            .map((img) {
-              final s = img.toString();
-              return s.startsWith('http') ? s : 'http://localhost:5000/$s';
-            })
-            .toList();
+        return media.expand((m) => (m['img_vd'] as List? ?? [])).map((img) {
+          final s = img.toString();
+          return s.startsWith('http') ? s : 'http://localhost:5000/$s';
+        }).toList();
       }
     } catch (_) {}
     return [
-      'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800'
+      'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800',
     ];
   }
 
@@ -375,11 +385,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     final alreadyInCart = _isProduct
         ? false // les produits fusionnent au lieu de bloquer
         : canAdd &&
-            _cartItems.any((i) {
-              final key =
-                  '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
-              return i['cartKey'] == key;
-            });
+              _cartItems.any((i) {
+                final key =
+                    '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
+                return i['cartKey'] == key;
+              });
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F0FF),
@@ -399,8 +409,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.arrow_back_ios_new,
-                    color: Colors.white, size: 16),
+                child: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: Colors.white,
+                  size: 16,
+                ),
               ),
             ),
             actions: [
@@ -409,28 +422,36 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   onTap: () => _showCartBottomSheet(context),
                   child: Container(
                     margin: const EdgeInsets.all(8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black26,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.shopping_cart_outlined,
-                            color: Colors.white, size: 16),
+                        const Icon(
+                          Icons.shopping_cart_outlined,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                         if (_cartItems.isNotEmpty) ...[
                           const SizedBox(width: 4),
                           Container(
                             padding: const EdgeInsets.all(3),
                             decoration: const BoxDecoration(
-                                color: Colors.red, shape: BoxShape.circle),
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
                             child: Text(
                               '${_cartItems.length}',
                               style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold),
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],
@@ -453,8 +474,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFFF3E5F5),
-                        child: const Icon(Icons.image_not_supported,
-                            color: _purple, size: 48),
+                        child: const Icon(
+                          Icons.image_not_supported,
+                          color: _purple,
+                          size: 48,
+                        ),
                       ),
                     ),
                   ),
@@ -473,7 +497,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                       right: 16,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(20),
@@ -481,7 +507,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                         child: Text(
                           '${_currentImageIndex + 1}/${images.length}',
                           style: const TextStyle(
-                              color: Colors.white, fontSize: 12),
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ),
@@ -495,12 +523,13 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                         children: List.generate(
                           images.length,
                           (i) => GestureDetector(
-                            onTap: () => _pageController.animateToPage(i,
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOut),
+                            onTap: () => _pageController.animateToPage(
+                              i,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            ),
                             child: Container(
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 3),
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
                               width: i == _currentImageIndex ? 20 : 6,
                               height: 6,
                               decoration: BoxDecoration(
@@ -581,8 +610,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 ),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: _isProduct
                       ? const Color(0xFFE8F5E9)
@@ -592,9 +623,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 child: Text(
                   (_resource['type'] ?? '').toString().capitalize(),
                   style: TextStyle(
-                      color: _isProduct ? Colors.green[700] : _purple,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
+                    color: _isProduct ? Colors.green[700] : _purple,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -607,8 +639,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               children: [
                 const Icon(Icons.location_on, size: 14, color: Colors.grey),
                 const SizedBox(width: 4),
-                Text(_resource['locationname'].toString(),
-                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                Text(
+                  _resource['locationname'].toString(),
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
               ],
             ),
         ],
@@ -629,30 +663,36 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Informations du prestataire',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A2E))),
+          const Text(
+            'Informations du prestataire',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
               _InfoChip(
-                  icon: Icons.business,
-                  label: prest?['lastname'] ?? 'N/A',
-                  color: const Color(0xFF6366F1)),
+                icon: Icons.business,
+                label: prest?['lastname'] ?? 'N/A',
+                color: const Color(0xFF6366F1),
+              ),
               const SizedBox(width: 8),
               _InfoChip(
-                  icon: Icons.phone,
-                  label: prest?['numTel'] ?? 'N/A',
-                  color: const Color(0xFF10B981)),
+                icon: Icons.phone,
+                label: prest?['numTel'] ?? 'N/A',
+                color: const Color(0xFF10B981),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           _InfoChip(
-              icon: Icons.email,
-              label: prest?['email'] ?? 'N/A',
-              color: const Color(0xFF0EA5E9)),
+            icon: Icons.email,
+            label: prest?['email'] ?? 'N/A',
+            color: const Color(0xFF0EA5E9),
+          ),
         ],
       ),
     );
@@ -670,16 +710,22 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Description',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A2E))),
+          const Text(
+            'Description',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             _resource['description'] ?? '',
-            style:
-                const TextStyle(fontSize: 13, color: Colors.grey, height: 1.6),
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.grey,
+              height: 1.6,
+            ),
           ),
         ],
       ),
@@ -709,11 +755,14 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Caractéristiques',
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A2E))),
+          const Text(
+            'Caractéristiques',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E),
+            ),
+          ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -723,8 +772,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   ? (e.value ? 'Oui' : 'Non')
                   : e.value.toString();
               return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFFBEB),
                   border: Border.all(color: const Color(0xFFFDE68A)),
@@ -733,9 +784,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 child: Text(
                   '${e.key.capitalize()} · $val',
                   style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF92400E),
-                      fontWeight: FontWeight.w500),
+                    fontSize: 12,
+                    color: Color(0xFF92400E),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               );
             }).toList(),
@@ -747,8 +799,18 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
 
   Widget _buildCalendarCard() {
     final monthNames = [
-      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+      'Janvier',
+      'Février',
+      'Mars',
+      'Avril',
+      'Mai',
+      'Juin',
+      'Juillet',
+      'Août',
+      'Septembre',
+      'Octobre',
+      'Novembre',
+      'Décembre',
     ];
     final weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     final days = _getDaysInMonth(_currentMonth);
@@ -766,11 +828,14 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Sélectionner une date',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E))),
+              const Text(
+                'Sélectionner une date',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
               if (_selectedDate != null)
                 GestureDetector(
                   onTap: () => setState(() {
@@ -779,8 +844,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                     _showTimeSlots = false;
                     _availableTimeSlots = [];
                   }),
-                  child: const Text('Réinitialiser',
-                      style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  child: const Text(
+                    'Réinitialiser',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
                 ),
             ],
           ),
@@ -792,19 +859,27 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 icon: const Icon(Icons.chevron_left),
                 onPressed: () => setState(() {
                   _currentMonth = DateTime(
-                      _currentMonth.year, _currentMonth.month - 1, 1);
+                    _currentMonth.year,
+                    _currentMonth.month - 1,
+                    1,
+                  );
                 }),
               ),
               Text(
                 '${monthNames[_currentMonth.month - 1]} ${_currentMonth.year}',
                 style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 14),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
                 onPressed: () => setState(() {
                   _currentMonth = DateTime(
-                      _currentMonth.year, _currentMonth.month + 1, 1);
+                    _currentMonth.year,
+                    _currentMonth.month + 1,
+                    1,
+                  );
                 }),
               ),
             ],
@@ -814,20 +889,26 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             children: weekDays
-                .map((d) => Center(
-                      child: Text(d,
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey)),
-                    ))
+                .map(
+                  (d) => Center(
+                    child: Text(
+                      d,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ),
+                )
                 .toList(),
           ),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7),
+              crossAxisCount: 7,
+            ),
             itemCount: days.length,
             itemBuilder: (_, i) {
               final item = days[i];
@@ -841,8 +922,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   date.toDateString() == DateTime.now().toDateString();
 
               Color bgColor = Colors.transparent;
-              Color textColor =
-                  avail ? const Color(0xFF1A1A2E) : Colors.red[200]!;
+              Color textColor = avail
+                  ? const Color(0xFF1A1A2E)
+                  : Colors.red[200]!;
               if (isSelected) {
                 bgColor = _purple;
                 textColor = Colors.white;
@@ -929,25 +1011,29 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             children: [
               const Icon(Icons.access_time, color: _purple, size: 18),
               const SizedBox(width: 6),
-              const Text('Créneaux disponibles',
-                  style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E))),
+              const Text(
+                'Créneaux disponibles',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
               const Spacer(),
               if (_selectedTimes.isNotEmpty)
                 GestureDetector(
                   onTap: () => setState(() => _selectedTimes = []),
-                  child: const Text('Désélectionner tout',
-                      style: TextStyle(color: Colors.grey, fontSize: 11)),
+                  child: const Text(
+                    'Désélectionner tout',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 8),
           if (_selectedDate != null)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFFF3E5F5),
                 borderRadius: BorderRadius.circular(10),
@@ -959,18 +1045,19 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             ),
           const SizedBox(height: 10),
           if (_loadingTimeSlots)
-            const Center(
-                child: CircularProgressIndicator(color: _purple))
+            const Center(child: CircularProgressIndicator(color: _purple))
           else if (_availableTimeSlots.isEmpty)
             const Center(
-                child: Text('Aucun créneau disponible',
-                    style: TextStyle(color: Colors.grey)))
+              child: Text(
+                'Aucun créneau disponible',
+                style: TextStyle(color: Colors.grey),
+              ),
+            )
           else
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              gridDelegate:
-                  const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 childAspectRatio: 2.5,
                 crossAxisSpacing: 8,
@@ -979,15 +1066,14 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               itemCount: _availableTimeSlots.length,
               itemBuilder: (_, i) {
                 final slot = _availableTimeSlots[i];
-                final selected =
-                    _selectedTimes.any((s) => s['id'] == slot['id']);
+                final selected = _selectedTimes.any(
+                  (s) => s['id'] == slot['id'],
+                );
                 return GestureDetector(
                   onTap: () => _toggleTimeSlot(slot),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: selected
-                          ? _purple
-                          : const Color(0xFFF3E5F5),
+                      color: selected ? _purple : const Color(0xFFF3E5F5),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: selected ? _purple : Colors.transparent,
@@ -1018,13 +1104,20 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${_selectedTimes.length} créneau(x)',
-                      style: const TextStyle(
-                          color: _purple, fontWeight: FontWeight.w500)),
                   Text(
-                      'Total : ${_calculateTotal().toStringAsFixed(0)} DT',
-                      style: const TextStyle(
-                          color: _purple, fontWeight: FontWeight.bold)),
+                    '${_selectedTimes.length} créneau(x)',
+                    style: const TextStyle(
+                      color: _purple,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    'Total : ${_calculateTotal().toStringAsFixed(0)} DT',
+                    style: const TextStyle(
+                      color: _purple,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1036,7 +1129,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
 
   // ← Booking card selon type
   Widget _buildBookingCard(
-      bool isPrestataire, bool canAdd, bool alreadyInCart) {
+    bool isPrestataire,
+    bool canAdd,
+    bool alreadyInCart,
+  ) {
     final price = _resource['price'] ?? 0;
 
     return Container(
@@ -1052,17 +1148,21 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('$price DT',
-                  style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E))),
+              Text(
+                '$price DT',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A2E),
+                ),
+              ),
               Text(
                 _isProduct ? ' / unité' : ' / heure',
                 style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.normal),
+                  fontSize: 14,
+                  color: Colors.grey,
+                  fontWeight: FontWeight.normal,
+                ),
               ),
             ],
           ),
@@ -1078,20 +1178,23 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
               child: const Column(
                 children: [
-                  Icon(Icons.info_outline,
-                      color: Color(0xFFD97706), size: 28),
+                  Icon(Icons.info_outline, color: Color(0xFFD97706), size: 28),
                   SizedBox(height: 6),
-                  Text('Réservation réservée aux particuliers',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: Color(0xFF92400E),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13)),
+                  Text(
+                    'Réservation réservée aux particuliers',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF92400E),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
                   SizedBox(height: 4),
-                  Text('Les prestataires ne peuvent pas réserver.',
-                      textAlign: TextAlign.center,
-                      style:
-                          TextStyle(color: Color(0xFFD97706), fontSize: 11)),
+                  Text(
+                    'Les prestataires ne peuvent pas réserver.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFFD97706), fontSize: 11),
+                  ),
                 ],
               ),
             )
@@ -1105,19 +1208,21 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
               child: Column(
                 children: [
-                  const Text('Quantité',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A2E))),
+                  const Text(
+                    'Quantité',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       GestureDetector(
                         onTap: _productQuantity > 1
-                            ? () => setState(
-                                () => _productQuantity--)
+                            ? () => setState(() => _productQuantity--)
                             : null,
                         child: Container(
                           width: 40,
@@ -1128,22 +1233,25 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                                 : Colors.grey[300],
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.remove,
-                              color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.remove,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Text(
                           '$_productQuantity',
                           style: const TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.bold),
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                       GestureDetector(
-                        onTap: () =>
-                            setState(() => _productQuantity++),
+                        onTap: () => setState(() => _productQuantity++),
                         child: Container(
                           width: 40,
                           height: 40,
@@ -1151,8 +1259,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                             color: _purple,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.add,
-                              color: Colors.white, size: 20),
+                          child: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ],
@@ -1160,7 +1271,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
@@ -1168,9 +1281,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                     child: Text(
                       'Total : ${_calculateTotal().toStringAsFixed(0)} DT',
                       style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: _purple),
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: _purple,
+                      ),
                     ),
                   ),
                 ],
@@ -1182,10 +1296,9 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               child: ElevatedButton.icon(
                 onPressed: _addToCart,
                 icon: Icon(
-                    _addedToCart
-                        ? Icons.check
-                        : Icons.shopping_cart_outlined,
-                    size: 18),
+                  _addedToCart ? Icons.check : Icons.shopping_cart_outlined,
+                  size: 18,
+                ),
                 label: Text(
                   _addedToCart
                       ? 'Ajouté !'
@@ -1193,12 +1306,12 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   style: const TextStyle(fontSize: 13),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _addedToCart ? Colors.green : _purple,
+                  backgroundColor: _addedToCart ? Colors.green : _purple,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
@@ -1213,14 +1326,19 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                 children: [
                   const Icon(Icons.check_circle, color: _purple, size: 28),
                   const SizedBox(height: 6),
-                  const Text('Déjà dans votre panier',
-                      style: TextStyle(
-                          color: _purple, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Déjà dans votre panier',
+                    style: TextStyle(
+                      color: _purple,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   TextButton(
                     onPressed: () => _showCartBottomSheet(context),
-                    child: const Text('Voir le panier →',
-                        style:
-                            TextStyle(color: _purple, fontSize: 12)),
+                    child: const Text(
+                      'Voir le panier →',
+                      style: TextStyle(color: _purple, fontSize: 12),
+                    ),
                   ),
                 ],
               ),
@@ -1231,27 +1349,26 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               child: ElevatedButton.icon(
                 onPressed: canAdd ? _addToCart : null,
                 icon: Icon(
-                    _addedToCart
-                        ? Icons.check
-                        : Icons.shopping_cart_outlined,
-                    size: 18),
+                  _addedToCart ? Icons.check : Icons.shopping_cart_outlined,
+                  size: 18,
+                ),
                 label: Text(
                   _addedToCart
                       ? 'Ajouté !'
                       : _selectedDate == null
-                          ? 'Sélectionnez une date'
-                          : _selectedTimes.isEmpty
-                              ? 'Choisissez des créneaux'
-                              : 'Ajouter au panier (${_calculateTotal().toStringAsFixed(0)} DT)',
+                      ? 'Sélectionnez une date'
+                      : _selectedTimes.isEmpty
+                      ? 'Choisissez des créneaux'
+                      : 'Ajouter au panier (${_calculateTotal().toStringAsFixed(0)} DT)',
                   style: const TextStyle(fontSize: 13),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _addedToCart ? Colors.green : _purple,
+                  backgroundColor: _addedToCart ? Colors.green : _purple,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   disabledBackgroundColor: Colors.grey[300],
                   disabledForegroundColor: Colors.grey[500],
                 ),
@@ -1261,10 +1378,11 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           if (!isPrestataire)
             const Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('Connexion requise uniquement pour envoyer',
-                  textAlign: TextAlign.center,
-                  style:
-                      TextStyle(color: Colors.grey, fontSize: 11)),
+              child: Text(
+                'Connexion requise uniquement pour envoyer',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 11),
+              ),
             ),
         ],
       ),
@@ -1289,23 +1407,31 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.chat_bubble_outline,
-                      color: _purple, size: 18),
+                  const Icon(
+                    Icons.chat_bubble_outline,
+                    color: _purple,
+                    size: 18,
+                  ),
                   const SizedBox(width: 6),
-                  Text('Avis (${_comments.length})',
-                      style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1A1A2E))),
+                  Text(
+                    'Avis (${_comments.length})',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A2E),
+                    ),
+                  ),
                 ],
               ),
               if (hasToken)
                 GestureDetector(
-                  onTap: () => setState(
-                      () => _showCommentForm = !_showCommentForm),
+                  onTap: () =>
+                      setState(() => _showCommentForm = !_showCommentForm),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 6),
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3E5F5),
                       borderRadius: BorderRadius.circular(10),
@@ -1313,9 +1439,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                     child: Text(
                       _showCommentForm ? 'Annuler' : 'Donner un avis',
                       style: const TextStyle(
-                          color: _purple,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
+                        color: _purple,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -1323,15 +1450,17 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
           ),
           if (_averageRating > 0) ...[
             const SizedBox(height: 6),
-            Text('Note moyenne : ${_averageRating.toStringAsFixed(1)}/5',
-                style:
-                    const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(
+              'Note moyenne : ${_averageRating.toStringAsFixed(1)}/5',
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+            ),
           ],
           if (_showCommentForm && hasToken) ...[
             const SizedBox(height: 14),
-            const Text('Votre note',
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w500)),
+            const Text(
+              'Votre note',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
             const SizedBox(height: 6),
             Row(
               children: List.generate(
@@ -1352,8 +1481,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'Minimum 10 caractères...',
-                hintStyle:
-                    TextStyle(color: Colors.grey[400], fontSize: 13),
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey[200]!),
@@ -1369,13 +1497,13 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    _submittingComment ? null : _submitComment,
+                onPressed: _submittingComment ? null : _submitComment,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _purple,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 child: _submittingComment
@@ -1383,7 +1511,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Text('Publier'),
               ),
             ),
@@ -1393,21 +1524,25 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: Text('Aucun avis pour le moment',
-                    style: TextStyle(color: Colors.grey)),
+                child: Text(
+                  'Aucun avis pour le moment',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             )
           else
-            ...(_comments.take(5).map((c) => _CommentItem(
-                  comment: c,
-                  currentUserId:
-                      widget.user['id'] ?? widget.user['_id'],
-                  onDelete: (id) async {
-                    await http.delete(
-                        Uri.parse('$baseUrl/comments/$id'));
-                    await _fetchComments();
-                  },
-                ))),
+            ...(_comments
+                .take(5)
+                .map(
+                  (c) => _CommentItem(
+                    comment: c,
+                    currentUserId: widget.user['id'] ?? widget.user['_id'],
+                    onDelete: (id) async {
+                      await http.delete(Uri.parse('$baseUrl/comments/$id'));
+                      await _fetchComments();
+                    },
+                  ),
+                )),
         ],
       ),
     );
@@ -1430,8 +1565,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
             if (item['cartKey'] == key) {
               item['quantity'] = qty;
               item['totalPrice'] = (item['price'] ?? 0) * qty;
-              item['cartKey'] =
-                  '${item['resourceId']}__produit__qty$qty';
+              item['cartKey'] = '${item['resourceId']}__produit__qty$qty';
             }
           }
           _saveCart(updated);
@@ -1456,7 +1590,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     for (var i = 0; i < fdow - 1; i++) {
       days.add({
         'date': first.subtract(Duration(days: fdow - 1 - i)),
-        'inMonth': false
+        'inMonth': false,
       });
     }
     for (var d = 1; d <= last.day; d++) {
@@ -1466,10 +1600,10 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   }
 
   BoxShadow _boxShadow() => BoxShadow(
-        color: Colors.black.withOpacity(0.05),
-        blurRadius: 10,
-        offset: const Offset(0, 3),
-      );
+    color: Colors.black.withOpacity(0.05),
+    blurRadius: 10,
+    offset: const Offset(0, 3),
+  );
 }
 
 // ── Extensions ──────────────────────────────────────────
@@ -1477,11 +1611,27 @@ extension DateExt on DateTime {
   String toDateString() => '$year-$month-$day';
   String toLocaleFR() {
     const months = [
-      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'
+      'janvier',
+      'février',
+      'mars',
+      'avril',
+      'mai',
+      'juin',
+      'juillet',
+      'août',
+      'septembre',
+      'octobre',
+      'novembre',
+      'décembre',
     ];
     const days = [
-      'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
+      'lundi',
+      'mardi',
+      'mercredi',
+      'jeudi',
+      'vendredi',
+      'samedi',
+      'dimanche',
     ];
     return '${days[weekday - 1]} $day ${months[month - 1]} $year';
   }
@@ -1511,8 +1661,10 @@ class _StarRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text('${rating.toStringAsFixed(1)} ($reviewCount avis)',
-            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(
+          '${rating.toStringAsFixed(1)} ($reviewCount avis)',
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
       ],
     );
   }
@@ -1522,8 +1674,11 @@ class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _InfoChip(
-      {required this.icon, required this.label, required this.color});
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1538,11 +1693,14 @@ class _InfoChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: color,
-                  fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -1559,12 +1717,12 @@ class _LegendDot extends StatelessWidget {
     return Row(
       children: [
         Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 4),
-        Text(label,
-            style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }
@@ -1574,16 +1732,17 @@ class _CommentItem extends StatelessWidget {
   final dynamic comment;
   final String currentUserId;
   final Function(String) onDelete;
-  const _CommentItem(
-      {required this.comment,
-      required this.currentUserId,
-      required this.onDelete});
+  const _CommentItem({
+    required this.comment,
+    required this.currentUserId,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
     final user = comment['C_user'];
-    final name =
-        '${user?['firstname'] ?? ''} ${user?['lastname'] ?? ''}'.trim();
+    final name = '${user?['firstname'] ?? ''} ${user?['lastname'] ?? ''}'
+        .trim();
     final stars = comment['nbr_stars'] ?? 0;
     final content = comment['contenue'] ?? '';
     final isOwner = user?['_id'] == currentUserId;
@@ -1599,7 +1758,9 @@ class _CommentItem extends StatelessWidget {
             child: Text(
               name.isNotEmpty ? name[0].toUpperCase() : 'U',
               style: const TextStyle(
-                  color: Color(0xFF9C27B0), fontWeight: FontWeight.bold),
+                color: Color(0xFF9C27B0),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(width: 10),
@@ -1609,29 +1770,42 @@ class _CommentItem extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(name.isNotEmpty ? name : 'Utilisateur',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 13)),
+                    Text(
+                      name.isNotEmpty ? name : 'Utilisateur',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
                     if (isOwner) ...[
                       const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEDE9FE),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text('Vous',
-                            style: TextStyle(
-                                color: Color(0xFF9C27B0), fontSize: 9)),
+                        child: const Text(
+                          'Vous',
+                          style: TextStyle(
+                            color: Color(0xFF9C27B0),
+                            fontSize: 9,
+                          ),
+                        ),
                       ),
                     ],
                     const Spacer(),
                     if (isOwner)
                       GestureDetector(
                         onTap: () => onDelete(comment['_id']),
-                        child: const Icon(Icons.delete_outline,
-                            size: 14, color: Colors.red),
+                        child: const Icon(
+                          Icons.delete_outline,
+                          size: 14,
+                          color: Colors.red,
+                        ),
                       ),
                   ],
                 ),
@@ -1647,9 +1821,14 @@ class _CommentItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(content,
-                    style: const TextStyle(
-                        fontSize: 12, color: Colors.grey, height: 1.5)),
+                Text(
+                  content,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    height: 1.5,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1681,14 +1860,15 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
   @override
   Widget build(BuildContext context) {
     final total = widget.cartItems.fold<double>(
-        0.0,
-        (s, i) =>
-            s + ((i['totalPrice'] ?? i['price'] ?? 0) as num).toDouble());
+      0.0,
+      (s, i) => s + ((i['totalPrice'] ?? i['price'] ?? 0) as num).toDouble(),
+    );
 
     return Container(
       padding: const EdgeInsets.all(20),
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1701,25 +1881,34 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
             height: 4,
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2)),
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
           Row(
             children: [
-              const Icon(Icons.shopping_cart_outlined,
-                  color: Color(0xFF9C27B0)),
+              const Icon(
+                Icons.shopping_cart_outlined,
+                color: Color(0xFF9C27B0),
+              ),
               const SizedBox(width: 8),
-              Text('Mon panier (${widget.cartItems.length})',
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(
+                'Mon panier (${widget.cartItems.length})',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
           if (widget.cartItems.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
-              child: Text('Votre panier est vide',
-                  style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'Votre panier est vide',
+                style: TextStyle(color: Colors.grey),
+              ),
             )
           else
             Flexible(
@@ -1748,23 +1937,28 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                               child: Text(
                                 item['resourceName'] ?? '',
                                 style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1A1A2E)),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1A1A2E),
+                                ),
                               ),
                             ),
                             GestureDetector(
-                              onTap: () =>
-                                  widget.onRemove(item['cartKey']),
-                              child: const Icon(Icons.close,
-                                  size: 16, color: Colors.red),
+                              onTap: () => widget.onRemove(item['cartKey']),
+                              child: const Icon(
+                                Icons.close,
+                                size: 16,
+                                color: Colors.red,
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: isProduct
                                 ? const Color(0xFFE8F5E9)
@@ -1787,14 +1981,20 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                           // ← Contrôle quantité MODIFIABLE pour produits
                           Row(
                             children: [
-                              const Text('Qté :',
-                                  style: TextStyle(
-                                      fontSize: 12, color: Colors.grey)),
+                              const Text(
+                                'Qté :',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
                               const SizedBox(width: 10),
                               GestureDetector(
                                 onTap: qty > 1
                                     ? () => widget.onUpdateQuantity(
-                                        item['cartKey'], qty - 1)
+                                        item['cartKey'],
+                                        qty - 1,
+                                      )
                                     : null,
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
@@ -1804,40 +2004,51 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                                         : Colors.grey[300],
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.remove,
-                                      size: 14, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.remove,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                               Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 12),
+                                  horizontal: 12,
+                                ),
                                 child: Text(
                                   '$qty',
                                   style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                               GestureDetector(
                                 onTap: () => widget.onUpdateQuantity(
-                                    item['cartKey'], qty + 1),
+                                  item['cartKey'],
+                                  qty + 1,
+                                ),
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: const BoxDecoration(
                                     color: Color(0xFF9C27B0),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.add,
-                                      size: 14, color: Colors.white),
+                                  child: const Icon(
+                                    Icons.add,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                               const Spacer(),
                               Text(
                                 '${(unitPrice * qty).toStringAsFixed(0)} DT',
                                 style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF9C27B0)),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF9C27B0),
+                                ),
                               ),
                             ],
                           ),
@@ -1847,7 +2058,9 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                             Text(
                               'Date : ${_formatDate(item['selectedDate'])}',
                               style: const TextStyle(
-                                  fontSize: 11, color: Colors.grey),
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
                             ),
                           if (item['selectedTimes'] != null &&
                               (item['selectedTimes'] as List).isNotEmpty) ...[
@@ -1855,27 +2068,27 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                             Wrap(
                               spacing: 4,
                               runSpacing: 4,
-                              children:
-                                  (item['selectedTimes'] as List)
-                                      .map((t) => Container(
-                                            padding:
-                                                const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 3),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF3E5F5),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              t['display'] ?? '',
-                                              style: const TextStyle(
-                                                  fontSize: 10,
-                                                  color:
-                                                      Color(0xFF9C27B0)),
-                                            ),
-                                          ))
-                                      .toList(),
+                              children: (item['selectedTimes'] as List)
+                                  .map(
+                                    (t) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF3E5F5),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        t['display'] ?? '',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Color(0xFF9C27B0),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
                             ),
                           ],
                           const SizedBox(height: 6),
@@ -1884,9 +2097,10 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                             child: Text(
                               '${(item['totalPrice'] ?? item['price'] ?? 0)} DT',
                               style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF9C27B0)),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF9C27B0),
+                              ),
                             ),
                           ),
                         ],
@@ -1901,25 +2115,39 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total estimé',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('${total.toStringAsFixed(0)} DT',
-                    style: const TextStyle(
-                        color: Color(0xFF9C27B0),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16)),
+                const Text(
+                  'Total estimé',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  '${total.toStringAsFixed(0)} DT',
+                  style: const TextStyle(
+                    color: Color(0xFF9C27B0),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: widget.onNavigate,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          MesReservationsPage(),
+                    ),
+                  );
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF9C27B0),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 child: const Text('Continuer mes réservations'),
@@ -1936,8 +2164,18 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
     try {
       final dt = DateTime.parse(isoDate);
       const months = [
-        'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
-        'jul', 'aoû', 'sep', 'oct', 'nov', 'déc'
+        'jan',
+        'fév',
+        'mar',
+        'avr',
+        'mai',
+        'jun',
+        'jul',
+        'aoû',
+        'sep',
+        'oct',
+        'nov',
+        'déc',
       ];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {

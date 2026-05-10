@@ -5,6 +5,7 @@ import 'home_content_screen.dart';
 import 'profile_screen.dart';
 import 'vendors_screen.dart';
 import 'events_screen.dart';
+import "mes_reservations_page.dart";
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -45,15 +46,12 @@ class _HomeScreenState extends State<HomeScreen> {
       MesEvenementsPage(
         userId: _currentUser['_id'] ?? _currentUser['id'] ?? '',
       ),
-      VendorsScreen(user: _currentUser, token: widget.token),
+      MesReservationsPage(),
       ProfileScreen(user: _currentUser, token: widget.token),
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -97,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.inventory_2_outlined),
                 activeIcon: Icon(Icons.inventory_2),
-                label: 'Ressources',
+                label: 'reservation',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person_outline),
