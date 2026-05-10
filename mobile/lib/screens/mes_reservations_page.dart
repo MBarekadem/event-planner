@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:image_picker/image_picker.dart';
 
 // ─────────────────────────────────────────
 // CONSTANTS
@@ -79,16 +81,14 @@ class CartItem {
 class EventModel {
   final String id;
   final String title;
-
   EventModel({required this.id, required this.title});
-
   factory EventModel.fromJson(Map<String, dynamic> j) =>
       EventModel(id: j['_id'] ?? '', title: j['title'] ?? 'Sans titre');
 }
 
 class Reservation {
   final String id;
-  final String status; // 'en attente' | 'acceptée' | 'refusée'
+  final String status;
   final String dateDebut;
   final String dateFin;
   final String payer;
@@ -129,9 +129,8 @@ class Reservation {
       eventTitle: evt?['title'],
       resourceName: res?['name'],
       resourceType: res?['type'],
-      resourcePrice: res?['price'] != null
-          ? (res!['price'] as num).toDouble()
-          : null,
+      resourcePrice:
+          res?['price'] != null ? (res!['price'] as num).toDouble() : null,
       resourceId: res?['_id'],
     );
   }
@@ -166,7 +165,6 @@ class ApiService {
     };
   }
 
-  // GET /ressources/get_by_id/:id
   static Future<Map<String, dynamic>?> getResource(String id) async {
     try {
       final res = await http.get(
@@ -177,7 +175,6 @@ class ApiService {
     return null;
   }
 
-  // GET /location/get_my_locations
   static Future<List<Reservation>> getMyReservations() async {
     final headers = await authHeaders();
     final res = await http.get(
@@ -191,7 +188,6 @@ class ApiService {
     return [];
   }
 
-  // GET /event/user_event/:uid
   static Future<List<EventModel>> getUserEvents() async {
     final headers = await authHeaders();
     final user = await getUser();
@@ -208,28 +204,46 @@ class ApiService {
     return [];
   }
 
-  // POST /location/create
   static Future<bool> createLocation({
     required String eventId,
     required String resourceId,
     required String dateDebut,
     required String dateFin,
+    File? cinFile,
   }) async {
-    final headers = await authHeaders();
-    final res = await http.post(
-      Uri.parse('$kBaseUrl/location/create'),
-      headers: headers,
-      body: jsonEncode({
-        'event': eventId,
-        'resource': resourceId,
-        'dateDebut': dateDebut,
-        'dateFin': dateFin,
-      }),
-    );
-    return res.statusCode == 200 || res.statusCode == 201;
+    final tok = await getToken();
+    final uri = Uri.parse('$kBaseUrl/location/create');
+
+    if (cinFile != null) {
+      // Multipart si CIN fourni
+      final request = http.MultipartRequest('POST', uri);
+      if (tok != null) request.headers['Authorization'] = 'Bearer $tok';
+      request.fields['event'] = eventId;
+      request.fields['resource'] = resourceId;
+      request.fields['dateDebut'] = dateDebut;
+      request.fields['dateFin'] = dateFin;
+      request.files.add(
+        await http.MultipartFile.fromPath('cin', cinFile.path),
+      );
+      final streamed = await request.send();
+      return streamed.statusCode == 200 || streamed.statusCode == 201;
+    } else {
+      // JSON simple
+      final headers = await authHeaders();
+      final res = await http.post(
+        uri,
+        headers: headers,
+        body: jsonEncode({
+          'event': eventId,
+          'resource': resourceId,
+          'dateDebut': dateDebut,
+          'dateFin': dateFin,
+        }),
+      );
+      return res.statusCode == 200 || res.statusCode == 201;
+    }
   }
 
-  // POST /auth/login
   static Future<Map<String, dynamic>?> login(
     String email,
     String password,
@@ -243,7 +257,6 @@ class ApiService {
     return null;
   }
 
-  // POST /auth/register
   static Future<Map<String, dynamic>?> register(
     Map<String, dynamic> body,
   ) async {
@@ -257,7 +270,6 @@ class ApiService {
     return null;
   }
 
-  // POST /event/create
   static Future<String?> createEvent(
     Map<String, dynamic> body,
     String token,
@@ -279,7 +291,7 @@ class ApiService {
 }
 
 // ─────────────────────────────────────────
-// CART SERVICE (SharedPreferences)
+// CART SERVICE
 // ─────────────────────────────────────────
 class CartService {
   static const _key = 'reservationCart';
@@ -318,6 +330,7 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
   List<CartItem> _cart = [];
   List<Reservation> _reservations = [];
   List<EventModel> _events = [];
+  // Stock réel par resourceId (chargé depuis l'API)
   Map<String, int> _stockLimits = {};
   bool _loading = true;
   String? _sendingId;
@@ -335,7 +348,6 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     _token = prefs.getString('token');
     final userRaw = prefs.getString('user');
     if (userRaw != null) _user = jsonDecode(userRaw);
-
     await _loadCart();
     if (_token != null) {
       await Future.wait([_fetchReservations(), _fetchEvents()]);
@@ -343,20 +355,26 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     setState(() => _loading = false);
   }
 
-  // ── CART ──
+  // ── CART ──────────────────────────────────────────────
+
   Future<void> _loadCart() async {
     final items = await CartService.load();
     final stocks = <String, int>{};
+    // Charger le stock réel pour chaque item
     await Future.wait(
       items.map((i) async {
         final r = await ApiService.getResource(i.resourceId);
-        stocks[i.resourceId] =
-            (r?['quantity'] as int?) ?? (i.type == 'service' ? 1 : 999);
+        if (r != null) {
+          // quantity = stock disponible côté backend
+          stocks[i.resourceId] = (r['quantity'] as int?) ?? 999;
+        } else {
+          stocks[i.resourceId] = i.type == 'service' ? 1 : 999;
+        }
       }),
     );
     setState(() {
       _cart = items;
-      _stockLimits = {..._stockLimits, ...stocks};
+      _stockLimits = stocks;
     });
   }
 
@@ -367,13 +385,14 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
   }
 
   Future<void> _updateQty(String resourceId, int newQty) async {
+    // Limite = stock réel depuis l'API
     final max = _stockLimits[resourceId] ?? 999;
     if (newQty < 1) {
       await _removeItem(resourceId);
       return;
     }
     if (newQty > max) {
-      _toast('Stock maximum : $max', isError: true);
+      _toast('Stock disponible : $max unité(s) seulement', isError: true);
       return;
     }
     final updated = _cart.map((i) {
@@ -384,7 +403,8 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     setState(() => _cart = updated);
   }
 
-  // ── API ──
+  // ── API ───────────────────────────────────────────────
+
   Future<void> _fetchReservations() async {
     final data = await ApiService.getMyReservations();
     setState(() => _reservations = data);
@@ -395,7 +415,8 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     setState(() => _events = data);
   }
 
-  // ── SEND REQUEST ──
+  // ── SEND FLOW ─────────────────────────────────────────
+
   Future<void> _openSendFlow(CartItem item) async {
     if (_token == null) {
       final ok = await _showAuthModal();
@@ -405,7 +426,12 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     await _showSelectEventModal(item);
   }
 
-  Future<void> _sendRequest(CartItem item, String eventId) async {
+  /// Appelé après sélection événement + validation contrat + CIN
+  Future<void> _sendRequest(
+    CartItem item,
+    String eventId,
+    File? cinFile,
+  ) async {
     setState(() => _sendingId = item.resourceId);
     final date = item.selectedDate ?? DateTime.now().toIso8601String();
     final slots = item.selectedTimes.isNotEmpty
@@ -421,6 +447,7 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
         resourceId: item.resourceId,
         dateDebut: slot['start'] ?? date,
         dateFin: slot['end'] ?? date,
+        cinFile: cinFile,
       );
       if (!ok) allOk = false;
     }
@@ -440,7 +467,6 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
   // MODALS
   // ─────────────────────────────────────
 
-  // AUTH MODAL
   Future<bool> _showAuthModal() async {
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -464,7 +490,6 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     return result ?? false;
   }
 
-  // SELECT EVENT MODAL
   Future<void> _showSelectEventModal(CartItem item) async {
     await showModalBottomSheet(
       context: context,
@@ -473,9 +498,10 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
       builder: (_) => _SelectEventSheet(
         events: _events,
         item: item,
-        onConfirm: (eventId) {
+        // onConfirm reçoit maintenant eventId + cinFile
+        onConfirm: (eventId, cinFile) {
           Navigator.pop(context);
-          _sendRequest(item, eventId);
+          _sendRequest(item, eventId, cinFile);
         },
         onCreateNew: () {
           Navigator.pop(context);
@@ -485,7 +511,6 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     );
   }
 
-  // CREATE EVENT MODAL
   Future<void> _showCreateEventModal(CartItem item) async {
     await showModalBottomSheet(
       context: context,
@@ -493,15 +518,15 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
       backgroundColor: Colors.transparent,
       builder: (_) => _QuickEventSheet(
         token: _token!,
-        onCreated: (eventId) {
+        item: item,
+        onCreated: (eventId, cinFile) {
           Navigator.pop(context);
-          _sendRequest(item, eventId);
+          _sendRequest(item, eventId, cinFile);
         },
       ),
     );
   }
 
-  // TOAST
   void _toast(String msg, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -624,7 +649,7 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Mes reservations',
+            'Mes réservations',
             style: TextStyle(
               color: Colors.white,
               fontSize: 26,
@@ -633,7 +658,7 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
           ),
           SizedBox(height: 4),
           Text(
-            'Gérez vos resservations',
+            'Gérez vos réservations',
             style: TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
@@ -645,27 +670,15 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
-            label: 'Panier',
-            value: '$_totalCart',
-            color: kIndigo,
-          ),
+          child: _StatCard(label: 'Panier', value: '$_totalCart', color: kIndigo),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _StatCard(
-            label: 'Envoyées',
-            value: '$_totalSent',
-            color: kPurple,
-          ),
+          child: _StatCard(label: 'Envoyées', value: '$_totalSent', color: kPurple),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _StatCard(
-            label: 'Acceptées',
-            value: '$_totalAccepted',
-            color: kGreen,
-          ),
+          child: _StatCard(label: 'Acceptées', value: '$_totalAccepted', color: kGreen),
         ),
       ],
     );
@@ -679,12 +692,12 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
         border: Border.all(color: const Color(0xFFC7D2FE)),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lock_outline, color: Color(0xFF6366F1), size: 20),
-          const SizedBox(width: 10),
-          const Expanded(
+          Icon(Icons.lock_outline, color: Color(0xFF6366F1), size: 20),
+          SizedBox(width: 10),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -752,13 +765,15 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
         children: _cart.asMap().entries.map((entry) {
           final i = entry.key;
           final item = entry.value;
+          // stockMax = stock réel chargé depuis l'API
+          final stockMax = item.type == 'service'
+              ? 1
+              : (_stockLimits[item.resourceId] ?? 1);
           return Column(
             children: [
               _CartRow(
                 item: item,
-                stockMax: item.type == 'service'
-                    ? 1
-                    : (_stockLimits[item.resourceId] ?? 999),
+                stockMax: stockMax,
                 isSending: _sendingId == item.resourceId,
                 onQty: _updateQty,
                 onRemove: _removeItem,
@@ -878,7 +893,6 @@ class _CartRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Name + type badge
           Row(
             children: [
               _TypeBadge(type: item.type),
@@ -897,19 +911,18 @@ class _CartRow extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${item.price.toStringAsFixed(0)}€ / ${isService ? 'prestation' : 'unité'}'
-            '${!isService ? ' · Stock : $stockMax' : ''}'
+            '${item.price.toStringAsFixed(0)} DT / ${isService ? 'prestation' : 'unité'}'
+            '${!isService ? ' · Stock disponible : $stockMax' : ''}'
             '${item.selectedDate != null ? ' · ${DateFormat('dd/MM/yyyy').format(DateTime.parse(item.selectedDate!))}' : ''}',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
           ),
           const SizedBox(height: 10),
-          // Actions row
           Row(
             children: [
               if (!isService) ...[
                 _QtyControl(
                   value: item.quantity,
-                  max: stockMax,
+                  max: stockMax, // ← limité au stock réel
                   onDec: () => onQty(item.resourceId, item.quantity - 1),
                   onInc: () => onQty(item.resourceId, item.quantity + 1),
                 ),
@@ -926,13 +939,14 @@ class _CartRow extends StatelessWidget {
                   ),
                   child: Text(
                     '1 prestation',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
                 ),
                 const SizedBox(width: 8),
               ],
               Text(
-                '${item.totalPrice.toStringAsFixed(0)}€',
+                '${item.totalPrice.toStringAsFixed(0)} DT',
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -940,7 +954,6 @@ class _CartRow extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              // Send button
               SizedBox(
                 height: 34,
                 child: ElevatedButton.icon(
@@ -971,7 +984,6 @@ class _CartRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              // Remove button
               GestureDetector(
                 onTap: () => onRemove(item.resourceId),
                 child: Container(
@@ -1029,6 +1041,7 @@ class _QtyControl extends StatelessWidget {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
+          // Bouton + désactivé si on atteint le stock max
           _QtyBtn(icon: Icons.add, onTap: value >= max ? null : onInc),
         ],
       ),
@@ -1070,12 +1083,9 @@ class _ReservationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color borderColor = Colors.grey.shade100;
-    if (res.isPaid)
-      borderColor = const Color(0xFFC4B5FD);
-    else if (res.isAccepted)
-      borderColor = const Color(0xFFA7F3D0);
-    else if (res.isRefused)
-      borderColor = const Color(0xFFFECACA);
+    if (res.isPaid) borderColor = const Color(0xFFC4B5FD);
+    else if (res.isAccepted) borderColor = const Color(0xFFA7F3D0);
+    else if (res.isRefused) borderColor = const Color(0xFFFECACA);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1087,26 +1097,19 @@ class _ReservationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top row
           Wrap(
             spacing: 6,
             runSpacing: 4,
             children: [
               Text(
                 res.resourceName ?? 'Ressource',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               _StatusPill(status: res.status),
               if (res.resourceType != null) _TypeBadge(type: res.resourceType!),
               if (res.isPaid)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 2,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEDE9FE),
                     borderRadius: BorderRadius.circular(20),
@@ -1130,7 +1133,6 @@ class _ReservationCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // Meta
           Wrap(
             spacing: 10,
             runSpacing: 6,
@@ -1139,27 +1141,21 @@ class _ReservationCard extends StatelessWidget {
                 width: MediaQuery.of(context).size.width * 0.65,
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 12,
-                      color: Colors.grey.shade400,
-                    ),
+                    Icon(Icons.calendar_today_outlined,
+                        size: 12, color: Colors.grey.shade400),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         '${_fmt(res.dateDebut)} → ${_fmt(res.dateFin)}',
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade400,
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
                       ),
                     ),
                   ],
                 ),
               ),
               Text(
-                '${res.resourcePrice?.toStringAsFixed(0) ?? '-'}€',
+                '${res.resourcePrice?.toStringAsFixed(0) ?? '-'} DT',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -1174,7 +1170,6 @@ class _ReservationCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          // Action button
           if (res.isPaid)
             _ActionButton(
               label: 'Voir la facture',
@@ -1182,19 +1177,15 @@ class _ReservationCard extends StatelessWidget {
               color: kPurple,
               onTap: () async {
                 if (res.invoice != null && res.invoice!.isNotEmpty) {
-                  final invoiceUrl = 'http://localhost:5000/${res.invoice}';
-
-                  debugPrint(invoiceUrl);
-
-                  final Uri url = Uri.parse(invoiceUrl);
-
+                  final Uri url =
+                      Uri.parse('http://localhost:5000/${res.invoice}');
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 }
               },
             )
           else if (res.isAccepted)
             _ActionButton(
-              label: 'Payer ${res.resourcePrice?.toStringAsFixed(0) ?? ''}€',
+              label: 'Payer ${res.resourcePrice?.toStringAsFixed(0) ?? ''} DT',
               icon: Icons.credit_card,
               color: kGreen,
               onTap: onPay,
@@ -1250,15 +1241,14 @@ class _ActionButton extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onTap,
         icon: Icon(icon, size: 14),
-        label: Text(
-          label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        ),
+        label: Text(label,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           elevation: 0,
         ),
       ),
@@ -1306,14 +1296,9 @@ class _StatusPill extends StatelessWidget {
         children: [
           Icon(cfg.icon, size: 10, color: cfg.fg),
           const SizedBox(width: 3),
-          Text(
-            cfg.label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: cfg.fg,
-            ),
-          ),
+          Text(cfg.label,
+              style: TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w600, color: cfg.fg)),
         ],
       ),
     );
@@ -1333,14 +1318,17 @@ class _TypeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: isProduct ? const Color(0xFFDCFCE7) : const Color(0xFFEDE9FE),
+        color:
+            isProduct ? const Color(0xFFDCFCE7) : const Color(0xFFEDE9FE),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isProduct ? Icons.inventory_2_outlined : Icons.group_outlined,
+            isProduct
+                ? Icons.inventory_2_outlined
+                : Icons.group_outlined,
             size: 10,
             color: isProduct
                 ? const Color(0xFF166534)
@@ -1364,17 +1352,13 @@ class _TypeBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────
-// STAT CARD WIDGET
+// STAT CARD
 // ─────────────────────────────────────────
 class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
+  const _StatCard({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1413,7 +1397,7 @@ class _StatCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────
-// AUTH BOTTOM SHEET
+// AUTH SHEET
 // ─────────────────────────────────────────
 class _AuthSheet extends StatefulWidget {
   final void Function(String token, Map<String, dynamic> user) onSuccess;
@@ -1433,10 +1417,7 @@ class _AuthSheetState extends State<_AuthSheet> {
   final _lastCtrl = TextEditingController();
 
   Future<void> _submit() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() { _loading = true; _error = null; });
     try {
       Map<String, dynamic>? res;
       if (_isLogin) {
@@ -1465,11 +1446,7 @@ class _AuthSheetState extends State<_AuthSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
+          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1480,31 +1457,26 @@ class _AuthSheetState extends State<_AuthSheet> {
         children: [
           Row(
             children: [
-              const Text(
-                'Connexion requise',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
+              const Text('Connexion requise',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               const Spacer(),
               GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Icon(Icons.close, size: 20),
-              ),
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close, size: 20)),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               _TabBtn(
-                label: 'Se connecter',
-                active: _isLogin,
-                onTap: () => setState(() => _isLogin = true),
-              ),
+                  label: 'Se connecter',
+                  active: _isLogin,
+                  onTap: () => setState(() => _isLogin = true)),
               const SizedBox(width: 8),
               _TabBtn(
-                label: 'S\'inscrire',
-                active: !_isLogin,
-                onTap: () => setState(() => _isLogin = false),
-              ),
+                  label: 'S\'inscrire',
+                  active: !_isLogin,
+                  onTap: () => setState(() => _isLogin = false)),
             ],
           ),
           const SizedBox(height: 16),
@@ -1514,11 +1486,7 @@ class _AuthSheetState extends State<_AuthSheet> {
             _Field(ctrl: _lastCtrl, hint: 'Nom'),
             const SizedBox(height: 10),
           ],
-          _Field(
-            ctrl: _emailCtrl,
-            hint: 'Email',
-            keyboardType: TextInputType.emailAddress,
-          ),
+          _Field(ctrl: _emailCtrl, hint: 'Email', keyboardType: TextInputType.emailAddress),
           const SizedBox(height: 10),
           _Field(ctrl: _passCtrl, hint: 'Mot de passe', obscure: true),
           if (_error != null) ...[
@@ -1534,24 +1502,15 @@ class _AuthSheetState extends State<_AuthSheet> {
                 backgroundColor: kIndigo,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 elevation: 0,
               ),
               child: _loading
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      _isLogin ? 'Se connecter' : 'S\'inscrire',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text(_isLogin ? 'Se connecter' : 'S\'inscrire',
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
         ],
@@ -1564,11 +1523,7 @@ class _TabBtn extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _TabBtn({
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
+  const _TabBtn({required this.label, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1580,14 +1535,12 @@ class _TabBtn extends StatelessWidget {
           color: active ? kIndigo : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: active ? Colors.white : Colors.grey.shade600,
-          ),
-        ),
+        child: Text(label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: active ? Colors.white : Colors.grey.shade600,
+            )),
       ),
     );
   }
@@ -1598,12 +1551,7 @@ class _Field extends StatelessWidget {
   final String hint;
   final bool obscure;
   final TextInputType? keyboardType;
-  const _Field({
-    required this.ctrl,
-    required this.hint,
-    this.obscure = false,
-    this.keyboardType,
-  });
+  const _Field({required this.ctrl, required this.hint, this.obscure = false, this.keyboardType});
 
   @override
   Widget build(BuildContext context) {
@@ -1615,10 +1563,7 @@ class _Field extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey.shade200),
@@ -1637,13 +1582,15 @@ class _Field extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────
-// SELECT EVENT BOTTOM SHEET
+// SELECT EVENT SHEET
 // ─────────────────────────────────────────
-class _SelectEventSheet extends StatelessWidget {
+// onConfirm reçoit (eventId, cinFile?) après validation contrat + CIN
+class _SelectEventSheet extends StatefulWidget {
   final List<EventModel> events;
   final CartItem item;
-  final void Function(String) onConfirm;
+  final void Function(String eventId, File? cinFile) onConfirm;
   final VoidCallback onCreateNew;
+
   const _SelectEventSheet({
     required this.events,
     required this.item,
@@ -1652,120 +1599,493 @@ class _SelectEventSheet extends StatelessWidget {
   });
 
   @override
+  State<_SelectEventSheet> createState() => _SelectEventSheetState();
+}
+
+class _SelectEventSheetState extends State<_SelectEventSheet> {
+  String? _selectedEventId;
+  bool _contractAccepted = false;
+  File? _cinFile;
+  bool _cinRequired = false; // affiche erreur si pas de CIN
+
+  final _picker = ImagePicker();
+
+  Future<void> _pickCin(ImageSource source) async {
+    final picked = await _picker.pickImage(source: source, imageQuality: 80);
+    if (picked != null) setState(() => _cinFile = File(picked.path));
+  }
+
+  void _showPickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Photo CIN',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _PickerOption(
+                    icon: Icons.camera_alt_outlined,
+                    label: 'Caméra',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickCin(ImageSource.camera);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PickerOption(
+                    icon: Icons.photo_library_outlined,
+                    label: 'Galerie',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickCin(ImageSource.gallery);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _tryConfirm() {
+    if (_selectedEventId == null) return;
+    if (!_contractAccepted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez accepter les conditions du contrat.'),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (_cinFile == null) {
+      setState(() => _cinRequired = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez importer votre photo CIN.'),
+          backgroundColor: kRed,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    widget.onConfirm(_selectedEventId!, _cinFile);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: EdgeInsets.fromLTRB(
+          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Choisir un événement',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Choisir un événement',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w700)),
+                      Text('Pour : ${widget.item.resourceName}',
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey.shade500)),
+                    ],
+                  ),
+                ),
+                GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close, size: 20)),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // ── Liste événements ──
+            if (widget.events.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text('Aucun événement trouvé.',
+                    style: TextStyle(
+                        fontSize: 13, color: Colors.grey.shade500)),
+              )
+            else
+              ...widget.events.map(
+                (e) => GestureDetector(
+                  onTap: () => setState(() => _selectedEventId = e.id),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: _selectedEventId == e.id
+                          ? const Color(0xFFEEF2FF)
+                          : Colors.grey.shade50,
+                      border: Border.all(
+                        color: _selectedEventId == e.id
+                            ? kIndigo
+                            : Colors.grey.shade200,
+                        width: _selectedEventId == e.id ? 1.5 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: _selectedEventId == e.id
+                                ? kIndigo
+                                : const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.event_outlined,
+                              color: _selectedEventId == e.id
+                                  ? Colors.white
+                                  : kIndigo,
+                              size: 18),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(e.title,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _selectedEventId == e.id
+                                    ? kIndigo
+                                    : Colors.black87,
+                              )),
+                        ),
+                        if (_selectedEventId == e.id)
+                          const Icon(Icons.check_circle,
+                              color: kIndigo, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 4),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: widget.onCreateNew,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Créer un nouvel événement',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kIndigo,
+                  side: const BorderSide(color: kIndigo),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // ── Section Contrat ──
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _contractAccepted
+                    ? const Color(0xFFECFDF5)
+                    : const Color(0xFFFFFBEB),
+                border: Border.all(
+                  color: _contractAccepted
+                      ? kGreen
+                      : const Color(0xFFFDE68A),
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        size: 18,
+                        color: _contractAccepted ? kGreen : kAmber,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Conditions du contrat',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _contractAccepted ? kGreen : const Color(0xFF92400E),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'En cochant cette case, vous acceptez les conditions générales de location/réservation de cette ressource, notamment :\n'
+                    '• Le respect des horaires convenus\n'
+                    '• La responsabilité des dommages éventuels\n'
+                    '• Le paiement dans les délais indiqués\n'
+                    '• L\'annulation selon la politique en vigueur',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () =>
+                        setState(() => _contractAccepted = !_contractAccepted),
+                    child: Row(
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: _contractAccepted
+                                ? kGreen
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: _contractAccepted
+                                  ? kGreen
+                                  : Colors.grey.shade400,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: _contractAccepted
+                              ? const Icon(Icons.check,
+                                  color: Colors.white, size: 14)
+                              : null,
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'J\'accepte les conditions générales du contrat',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Section CIN ──
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _cinFile != null
+                    ? const Color(0xFFECFDF5)
+                    : (_cinRequired ? const Color(0xFFFEF2F2) : Colors.grey.shade50),
+                border: Border.all(
+                  color: _cinFile != null
+                      ? kGreen
+                      : (_cinRequired ? kRed : Colors.grey.shade200),
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.credit_card_outlined,
+                        size: 18,
+                        color: _cinFile != null ? kGreen : Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Pièce d\'identité (CIN) *',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _cinFile != null
+                              ? kGreen
+                              : (_cinRequired ? kRed : Colors.black87),
+                        ),
+                      ),
+                      if (_cinFile != null) ...[
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => setState(() => _cinFile = null),
+                          child: Icon(Icons.close,
+                              size: 16, color: Colors.grey.shade400),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Importez une photo de votre CIN (recto) pour valider votre identité.',
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade500, height: 1.4),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_cinFile != null) ...[
+                    // Aperçu de la photo
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(
+                        _cinFile!,
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
                       ),
                     ),
-                    Text(
-                      'Pour : ${item.resourceName}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _showPickerOptions,
+                        icon: const Icon(Icons.refresh, size: 14),
+                        label: const Text('Changer la photo',
+                            style: TextStyle(fontSize: 12)),
+                        style: TextButton.styleFrom(foregroundColor: kIndigo),
                       ),
+                    ),
+                  ] else ...[
+                    // Boutons caméra / galerie
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PickerOption(
+                            icon: Icons.camera_alt_outlined,
+                            label: 'Prendre une photo',
+                            onTap: () => _pickCin(ImageSource.camera),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _PickerOption(
+                            icon: Icons.photo_library_outlined,
+                            label: 'Depuis la galerie',
+                            onTap: () => _pickCin(ImageSource.gallery),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
-                ),
+                ],
               ),
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Icon(Icons.close, size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (events.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                'Aucun événement trouvé.',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
-            )
-          else
-            ...events.map(
-              (e) => ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 0),
-                leading: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.event_outlined,
-                    color: kIndigo,
-                    size: 18,
-                  ),
-                ),
-                title: Text(
-                  e.title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                onTap: () => onConfirm(e.id),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── Bouton confirmer ──
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _selectedEventId == null ? null : _tryConfirm,
+                icon: const Icon(Icons.send, size: 16),
+                label: const Text('Confirmer et envoyer',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kIndigo,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
               ),
             ),
-          const SizedBox(height: 8),
-          const Divider(),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: onCreateNew,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text(
-                'Créer un nouvel événement',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: kIndigo,
-                side: const BorderSide(color: kIndigo),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────
-// QUICK CREATE EVENT BOTTOM SHEET
+// PICKER OPTION WIDGET
 // ─────────────────────────────────────────
+class _PickerOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _PickerOption(
+      {required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: kIndigo, size: 22),
+            const SizedBox(height: 6),
+            Text(label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: kIndigo)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────
+// QUICK CREATE EVENT SHEET
+// ─────────────────────────────────────────
+// Inclut aussi contrat + CIN avant de soumettre
 class _QuickEventSheet extends StatefulWidget {
   final String token;
-  final void Function(String eventId) onCreated;
-  const _QuickEventSheet({required this.token, required this.onCreated});
+  final CartItem item;
+  final void Function(String eventId, File? cinFile) onCreated;
+  const _QuickEventSheet({
+    required this.token,
+    required this.item,
+    required this.onCreated,
+  });
 
   @override
   State<_QuickEventSheet> createState() => _QuickEventSheetState();
@@ -1777,6 +2097,14 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
   DateTime? _date;
   bool _loading = false;
   String? _error;
+  bool _contractAccepted = false;
+  File? _cinFile;
+  final _picker = ImagePicker();
+
+  Future<void> _pickCin(ImageSource source) async {
+    final picked = await _picker.pickImage(source: source, imageQuality: 80);
+    if (picked != null) setState(() => _cinFile = File(picked.path));
+  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -1793,10 +2121,15 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
       setState(() => _error = 'Le titre est requis.');
       return;
     }
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!_contractAccepted) {
+      setState(() => _error = 'Veuillez accepter les conditions du contrat.');
+      return;
+    }
+    if (_cinFile == null) {
+      setState(() => _error = 'Veuillez importer votre photo CIN.');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
     final id = await ApiService.createEvent({
       'title': _titleCtrl.text.trim(),
       'description': _descCtrl.text.trim(),
@@ -1804,7 +2137,7 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
     }, widget.token);
     setState(() => _loading = false);
     if (id != null) {
-      widget.onCreated(id);
+      widget.onCreated(id, _cinFile);
     } else {
       setState(() => _error = 'Impossible de créer l\'événement.');
     }
@@ -1814,102 +2147,231 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
+          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      constraints:
+          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text(
-                'Nouvel événement',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Icon(Icons.close, size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _Field(ctrl: _titleCtrl, hint: 'Titre de l\'événement *'),
-          const SizedBox(height: 10),
-          _Field(ctrl: _descCtrl, hint: 'Description (optionnel)'),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _pickDate,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade200),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    size: 16,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _date != null
-                        ? DateFormat('dd/MM/yyyy').format(_date!)
-                        : 'Date de l\'événement',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: _date != null
-                          ? Colors.black87
-                          : Colors.grey.shade400,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Text('Nouvel événement',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Spacer(),
+                GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close, size: 20)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _Field(ctrl: _titleCtrl, hint: 'Titre de l\'événement *'),
+            const SizedBox(height: 10),
+            _Field(ctrl: _descCtrl, hint: 'Description (optionnel)'),
+            const SizedBox(height: 10),
+            // Date picker
+            GestureDetector(
+              onTap: _pickDate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined,
+                        size: 16, color: Colors.grey.shade400),
+                    const SizedBox(width: 8),
+                    Text(
+                      _date != null
+                          ? DateFormat('dd/MM/yyyy').format(_date!)
+                          : 'Date de l\'événement',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _date != null
+                            ? Colors.black87
+                            : Colors.grey.shade400,
+                      ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+
+            // ── Contrat ──
+            GestureDetector(
+              onTap: () =>
+                  setState(() => _contractAccepted = !_contractAccepted),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _contractAccepted
+                      ? const Color(0xFFECFDF5)
+                      : Colors.grey.shade50,
+                  border: Border.all(
+                    color: _contractAccepted ? kGreen : Colors.grey.shade200,
                   ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: _contractAccepted ? kGreen : Colors.transparent,
+                        border: Border.all(
+                          color: _contractAccepted
+                              ? kGreen
+                              : Colors.grey.shade400,
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: _contractAccepted
+                          ? const Icon(Icons.check, color: Colors.white, size: 14)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'J\'accepte les conditions générales du contrat de réservation',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ── CIN ──
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _cinFile != null
+                    ? const Color(0xFFECFDF5)
+                    : Colors.grey.shade50,
+                border: Border.all(
+                  color: _cinFile != null ? kGreen : Colors.grey.shade200,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.credit_card_outlined,
+                          size: 16,
+                          color: _cinFile != null
+                              ? kGreen
+                              : Colors.grey.shade600),
+                      const SizedBox(width: 6),
+                      Text('Photo CIN *',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: _cinFile != null ? kGreen : Colors.black87,
+                          )),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (_cinFile != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(_cinFile!,
+                          height: 100,
+                          width: double.infinity,
+                          fit: BoxFit.cover),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () => setState(() => _cinFile = null),
+                      child: Text('Supprimer',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey.shade400)),
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PickerOption(
+                            icon: Icons.camera_alt_outlined,
+                            label: 'Caméra',
+                            onTap: () => _pickCin(ImageSource.camera),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _PickerOption(
+                            icon: Icons.photo_library_outlined,
+                            label: 'Galerie',
+                            onTap: () => _pickCin(ImageSource.gallery),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(_error!, style: const TextStyle(fontSize: 12, color: kRed)),
-          ],
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kIndigo,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                elevation: 0,
-              ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Text(
-                      'Créer et envoyer la demande',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: kRed, size: 16),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(_error!,
+                          style: const TextStyle(fontSize: 12, color: kRed)),
                     ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kIndigo,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text('Créer et envoyer la demande',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

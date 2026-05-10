@@ -26,7 +26,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   bool _loading = true;
   List<dynamic> _comments = [];
   int _currentImageIndex = 0;
-  PageController _pageController = PageController();
+  final PageController _pageController = PageController();
 
   // Calendar
   DateTime _currentMonth = DateTime.now();
@@ -43,8 +43,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   // Produit quantity
   int _productQuantity = 1;
 
-  // Cart
-  List<dynamic> _cartItems = [];
+  // Cart — stocké comme List<CartItem> pour rester synchronisé avec CartService
+  List<CartItem> _cartItems = [];
   bool _addedToCart = false;
 
   // Comment form
@@ -57,10 +57,16 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   static const Color _purple = Color(0xFF9C27B0);
   static const Color _darkPurple = Color(0xFF7B2FBE);
 
-  // Shared local storage with home_content_screen
-  static final Map<String, dynamic> _localStorage = {};
-
+  // ── type helpers ──
+  // Le backend renvoie 'produit' ; CartItem.type attend 'product' pour les produits
+  // et 'service' pour les services. On normalise à la lecture/écriture.
   bool get _isProduct => (_resource?['type'] ?? '') == 'produit';
+
+  /// Normalise le type backend → CartItem.type
+  String _normalizeType(String backendType) {
+    if (backendType == 'produit') return 'product';
+    return 'service'; // tout le reste est un service
+  }
 
   @override
   void initState() {
@@ -76,17 +82,24 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     super.dispose();
   }
 
-  void _loadCartFromStorage() {
-    final raw = _localStorage['reservationCart'];
-    if (raw != null) {
-      setState(() => _cartItems = List.from(raw));
-    }
+  // ── Cart persistence ──────────────────────────────────
+
+  Future<void> _loadCartFromStorage() async {
+    final items = await CartService.load();
+    if (mounted) setState(() => _cartItems = items);
   }
 
-  void _saveCart(List<dynamic> items) {
-    _localStorage['reservationCart'] = items;
-    setState(() => _cartItems = items);
+  Future<void> _persistCart(List<CartItem> items) async {
+    await CartService.save(items);
+    if (mounted) setState(() => _cartItems = items);
   }
+
+  // Convertit un CartItem en Map<String,dynamic> pour l'affichage local
+  // (le BottomSheet consomme des Map, on garde la compatibilité)
+  List<Map<String, dynamic>> get _cartAsMaps =>
+      _cartItems.map((i) => i.toJson()).toList();
+
+  // ── Resource fetch ────────────────────────────────────
 
   Future<void> _fetchResource() async {
     try {
@@ -99,8 +112,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
         _parseAvailability(data);
         await _fetchComments();
       }
-    } catch (e) {
-      // handle error
+    } catch (_) {
     } finally {
       setState(() => _loading = false);
     }
@@ -143,6 +155,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       }
     } catch (_) {}
   }
+
+  // ── Date / time helpers ───────────────────────────────
 
   bool _isDateAvailable(DateTime date) {
     final today = DateTime.now();
@@ -206,94 +220,116 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  void _addToCart() {
+  // ── Cart actions ──────────────────────────────────────
+
+  Future<void> _addToCart() async {
     if (_resource == null) return;
 
-    String cartKey;
-    Map<String, dynamic> cartEntry;
+    final resourceId = _resource['_id'] as String;
+    final resourceName = _resource['name'] as String? ?? '';
+    final price = (_resource['price'] as num?)?.toDouble() ?? 0.0;
+    final backendType = _resource['type'] as String? ?? '';
+    final normalizedType = _normalizeType(backendType);
+
+    final updated = List<CartItem>.from(_cartItems);
 
     if (_isProduct) {
-      // Produit : pas besoin de date/créneaux
-      cartKey = '${_resource['_id']}__produit__qty$_productQuantity';
-      final existing = List<dynamic>.from(_cartItems);
-      // Si le produit existe déjà, mettre à jour la quantité
-      final existingIndex = existing.indexWhere(
-        (i) => i['resourceId'] == _resource['_id'] && i['type'] == 'produit',
+      // Produit : fusionner si déjà présent
+      final idx = updated.indexWhere(
+        (i) => i.resourceId == resourceId && i.type == 'product',
       );
-      if (existingIndex != -1) {
-        final newQty =
-            (existing[existingIndex]['quantity'] ?? 1) + _productQuantity;
-        existing[existingIndex]['quantity'] = newQty;
-        existing[existingIndex]['totalPrice'] =
-            (_resource['price'] ?? 0) * newQty;
-        existing[existingIndex]['cartKey'] =
-            '${_resource['_id']}__produit__qty$newQty';
-        _saveCart(existing);
-        setState(() => _addedToCart = true);
-        Future.delayed(
-          const Duration(seconds: 2),
-          () => setState(() => _addedToCart = false),
+      if (idx != -1) {
+        final newQty = updated[idx].quantity + _productQuantity;
+        updated[idx] = updated[idx].copyWith(
+          quantity: newQty,
+          totalPrice: price * newQty,
         );
+        await _persistCart(updated);
         _showCartSnack('Quantité mise à jour dans le panier !');
+      } else {
+        updated.add(
+          CartItem(
+            resourceId: resourceId,
+            resourceName: resourceName,
+            price: price,
+            type: normalizedType, // 'product'
+            quantity: _productQuantity,
+            totalPrice: _calculateTotal(),
+            selectedDate: null,
+            selectedTimes: const [],
+          ),
+        );
+        await _persistCart(updated);
+        _showCartSnack('Ajouté au panier !');
+      }
+    } else {
+      // Service : vérifier doublon par date+créneaux
+      final dateStr = _selectedDate?.toIso8601String().split('T')[0] ?? '';
+      final slotsStr = _selectedTimes.map((s) => s['display']).join('|');
+      final isDuplicate = updated.any(
+        (i) =>
+            i.resourceId == resourceId &&
+            i.selectedDate == _selectedDate?.toIso8601String() &&
+            i.selectedTimes.map((t) => t['display']).join('|') == slotsStr,
+      );
+      if (isDuplicate) {
+        _showCartSnack('Déjà dans votre panier');
         return;
       }
-      cartEntry = {
-        'cartKey': cartKey,
-        'resourceId': _resource['_id'],
-        'resourceName': _resource['name'],
-        'price': _resource['price'],
-        'type': 'produit',
-        'quantity': _productQuantity,
-        'totalPrice': _calculateTotal(),
-        'selectedDate': null,
-        'selectedTimes': [],
-      };
-    } else {
-      // Service : date + créneaux requis
-      cartKey =
-          '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
-      cartEntry = {
-        'cartKey': cartKey,
-        'resourceId': _resource['_id'],
-        'resourceName': _resource['name'],
-        'price': _resource['price'],
-        'type': _resource['type'],
-        'quantity': 1,
-        'totalPrice': _calculateTotal() > 0
-            ? _calculateTotal()
-            : _resource['price'],
-        'selectedDate': _selectedDate?.toIso8601String(),
-        'selectedTimes': _selectedTimes
-            .map(
-              (s) => {
-                'display': s['display'],
-                'start': (s['start'] as DateTime).toIso8601String(),
-                'end': (s['end'] as DateTime).toIso8601String(),
-                'price': s['price'],
-              },
-            )
-            .toList(),
-      };
+
+      // Convertit les selectedTimes en Map<String,String> pour CartItem
+      final timesForCart = _selectedTimes
+          .map(
+            (s) => <String, String>{
+              'display': s['display']?.toString() ?? '',
+              'start': (s['start'] as DateTime).toIso8601String(),
+              'end': (s['end'] as DateTime).toIso8601String(),
+              'price': (s['price'] ?? 0).toString(),
+            },
+          )
+          .toList();
+
+      updated.add(
+        CartItem(
+          resourceId: resourceId,
+          resourceName: resourceName,
+          price: price,
+          type: normalizedType, // 'service'
+          quantity: 1,
+          totalPrice: _calculateTotal() > 0 ? _calculateTotal() : price,
+          selectedDate: _selectedDate?.toIso8601String(),
+          selectedTimes: timesForCart,
+        ),
+      );
+      await _persistCart(updated);
+      _showCartSnack('Ajouté au panier !');
     }
 
-    final existing = List<dynamic>.from(_cartItems);
-    if (existing.any((i) => i['cartKey'] == cartKey)) {
-      _showCartSnack('Déjà dans votre panier');
-      return;
-    }
-    existing.add(cartEntry);
-    _saveCart(existing);
     setState(() => _addedToCart = true);
     Future.delayed(
       const Duration(seconds: 2),
-      () => setState(() => _addedToCart = false),
+      () {
+        if (mounted) setState(() => _addedToCart = false);
+      },
     );
-    _showCartSnack('Ajouté au panier !');
   }
 
-  void _removeFromCart(String cartKey) {
-    final updated = _cartItems.where((i) => i['cartKey'] != cartKey).toList();
-    _saveCart(updated);
+  Future<void> _removeFromCart(String resourceId) async {
+    final updated =
+        _cartItems.where((i) => i.resourceId != resourceId).toList();
+    await _persistCart(updated);
+  }
+
+  Future<void> _updateCartQty(String resourceId, int newQty) async {
+    if (newQty < 1) {
+      await _removeFromCart(resourceId);
+      return;
+    }
+    final updated = _cartItems.map((i) {
+      if (i.resourceId != resourceId) return i;
+      return i.copyWith(quantity: newQty, totalPrice: newQty * i.price);
+    }).toList();
+    await _persistCart(updated);
   }
 
   void _showCartSnack(String msg) {
@@ -307,6 +343,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       ),
     );
   }
+
+  // ── Comment ───────────────────────────────────────────
 
   Future<void> _submitComment() async {
     if (_commentController.text.length < 10) {
@@ -339,6 +377,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     }
   }
 
+  // ── Misc helpers ──────────────────────────────────────
+
   List<String> _getImages() {
     try {
       final media = _resource['media'] as List?;
@@ -360,6 +400,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
         _comments.length;
   }
 
+  // ── Build ─────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -377,18 +419,19 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
 
     final images = _getImages();
     final isPrestataire = widget.user['role'] == 'prestataire';
-
-    // Pour produits : toujours canAdd (quantité >= 1)
-    // Pour services : nécessite date + créneaux
     final canAdd = _isProduct || _selectedTimes.isNotEmpty;
 
+    // Vérification doublon pour services
     final alreadyInCart = _isProduct
-        ? false // les produits fusionnent au lieu de bloquer
+        ? false
         : canAdd &&
               _cartItems.any((i) {
-                final key =
-                    '${_resource['_id']}__${_selectedDate?.toIso8601String().split('T')[0] ?? 'nodate'}__${_selectedTimes.map((s) => s['display']).join('|')}';
-                return i['cartKey'] == key;
+                final slotsStr =
+                    _selectedTimes.map((s) => s['display']).join('|');
+                return i.resourceId == (_resource['_id'] as String) &&
+                    i.selectedDate == _selectedDate?.toIso8601String() &&
+                    i.selectedTimes.map((t) => t['display']).join('|') ==
+                        slotsStr;
               });
 
     return Scaffold(
@@ -396,7 +439,7 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // App Bar avec image
+          // ── AppBar avec image ──
           SliverAppBar(
             expandedHeight: 280,
             pinned: true,
@@ -562,8 +605,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                     _resource['customAttributes'] != null)
                   _buildAttributesCard(),
                 const SizedBox(height: 12),
-
-                // ← Afficher calendrier SEULEMENT pour les services
                 if (!_isProduct) ...[
                   _buildCalendarCard(),
                   const SizedBox(height: 12),
@@ -572,7 +613,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   if (_showTimeSlots && _selectedDate != null)
                     const SizedBox(height: 12),
                 ],
-
                 _buildBookingCard(isPrestataire, canAdd, alreadyInCart),
                 const SizedBox(height: 12),
                 _buildCommentsCard(),
@@ -584,6 +624,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       ),
     );
   }
+
+  // ── Cards ─────────────────────────────────────────────
 
   Widget _buildTitleCard() {
     return Container(
@@ -799,18 +841,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
 
   Widget _buildCalendarCard() {
     final monthNames = [
-      'Janvier',
-      'Février',
-      'Mars',
-      'Avril',
-      'Mai',
-      'Juin',
-      'Juillet',
-      'Août',
-      'Septembre',
-      'Octobre',
-      'Novembre',
-      'Décembre',
+      'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+      'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
     ];
     final weekDays = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
     final days = _getDaysInMonth(_currentMonth);
@@ -922,9 +954,8 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
                   date.toDateString() == DateTime.now().toDateString();
 
               Color bgColor = Colors.transparent;
-              Color textColor = avail
-                  ? const Color(0xFF1A1A2E)
-                  : Colors.red[200]!;
+              Color textColor =
+                  avail ? const Color(0xFF1A1A2E) : Colors.red[200]!;
               if (isSelected) {
                 bgColor = _purple;
                 textColor = Colors.white;
@@ -1127,7 +1158,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
     );
   }
 
-  // ← Booking card selon type
   Widget _buildBookingCard(
     bool isPrestataire,
     bool canAdd,
@@ -1199,7 +1229,6 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
             )
           else if (_isProduct) ...[
-            // ← Sélecteur quantité pour produits
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -1531,22 +1560,22 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
               ),
             )
           else
-            ...(_comments
-                .take(5)
-                .map(
-                  (c) => _CommentItem(
-                    comment: c,
-                    currentUserId: widget.user['id'] ?? widget.user['_id'],
-                    onDelete: (id) async {
-                      await http.delete(Uri.parse('$baseUrl/comments/$id'));
-                      await _fetchComments();
-                    },
-                  ),
-                )),
+            ..._comments.take(5).map(
+              (c) => _CommentItem(
+                comment: c,
+                currentUserId: widget.user['id'] ?? widget.user['_id'],
+                onDelete: (id) async {
+                  await http.delete(Uri.parse('$baseUrl/comments/$id'));
+                  await _fetchComments();
+                },
+              ),
+            ),
         ],
       ),
     );
   }
+
+  // ── Cart Bottom Sheet ─────────────────────────────────
 
   void _showCartBottomSheet(BuildContext context) {
     showModalBottomSheet(
@@ -1554,31 +1583,27 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _CartBottomSheet(
-        cartItems: _cartItems,
-        onRemove: (key) {
-          _removeFromCart(key);
-          Navigator.pop(context);
+        // On passe les Maps pour l'affichage (compatibilité UI existante)
+        cartItems: _cartAsMaps,
+        onRemove: (resourceId) async {
+          await _removeFromCart(resourceId);
+          if (mounted) Navigator.pop(context);
         },
-        onUpdateQuantity: (key, qty) {
-          final updated = List<dynamic>.from(_cartItems);
-          for (final item in updated) {
-            if (item['cartKey'] == key) {
-              item['quantity'] = qty;
-              item['totalPrice'] = (item['price'] ?? 0) * qty;
-              item['cartKey'] = '${item['resourceId']}__produit__qty$qty';
-            }
+        onUpdateQuantity: (resourceId, qty) async {
+          await _updateCartQty(resourceId, qty);
+          if (mounted) {
+            Navigator.pop(context);
+            _showCartBottomSheet(context);
           }
-          _saveCart(updated);
-          Navigator.pop(context);
-          _showCartBottomSheet(context);
         },
         onNavigate: () {
           Navigator.pop(context);
-          _showCartSnack('Redirection vers vos réservations');
         },
       ),
     );
   }
+
+  // ── Utils ─────────────────────────────────────────────
 
   List<Map<String, dynamic>> _getDaysInMonth(DateTime month) {
     final year = month.year;
@@ -1606,32 +1631,16 @@ class _ResourceDetailPageState extends State<ResourceDetailPage>
   );
 }
 
-// ── Extensions ──────────────────────────────────────────
+// ── Extensions ────────────────────────────────────────────
 extension DateExt on DateTime {
   String toDateString() => '$year-$month-$day';
   String toLocaleFR() {
     const months = [
-      'janvier',
-      'février',
-      'mars',
-      'avril',
-      'mai',
-      'juin',
-      'juillet',
-      'août',
-      'septembre',
-      'octobre',
-      'novembre',
-      'décembre',
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
     ];
     const days = [
-      'lundi',
-      'mardi',
-      'mercredi',
-      'jeudi',
-      'vendredi',
-      'samedi',
-      'dimanche',
+      'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche',
     ];
     return '${days[weekday - 1]} $day ${months[month - 1]} $year';
   }
@@ -1642,7 +1651,7 @@ extension StringExt on String {
       isEmpty ? this : '${this[0].toUpperCase()}${substring(1)}';
 }
 
-// ── Helper Widgets ───────────────────────────────────────
+// ── Helper Widgets ────────────────────────────────────────
 class _StarRow extends StatelessWidget {
   final double rating;
   final int reviewCount;
@@ -1674,11 +1683,7 @@ class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
+  const _InfoChip({required this.icon, required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -1741,8 +1746,8 @@ class _CommentItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = comment['C_user'];
-    final name = '${user?['firstname'] ?? ''} ${user?['lastname'] ?? ''}'
-        .trim();
+    final name =
+        '${user?['firstname'] ?? ''} ${user?['lastname'] ?? ''}'.trim();
     final stars = comment['nbr_stars'] ?? 0;
     final content = comment['contenue'] ?? '';
     final isOwner = user?['_id'] == currentUserId;
@@ -1838,11 +1843,13 @@ class _CommentItem extends StatelessWidget {
   }
 }
 
-// ── Cart Bottom Sheet (Resource Detail) ──────────────────
+// ── Cart Bottom Sheet ─────────────────────────────────────
+// Reçoit des Map<String,dynamic> pour l'affichage
+// onRemove et onUpdateQuantity reçoivent le resourceId
 class _CartBottomSheet extends StatefulWidget {
-  final List<dynamic> cartItems;
-  final Function(String) onRemove;
-  final Function(String, int) onUpdateQuantity;
+  final List<Map<String, dynamic>> cartItems;
+  final Function(String resourceId) onRemove;
+  final Function(String resourceId, int qty) onUpdateQuantity;
   final VoidCallback onNavigate;
 
   const _CartBottomSheet({
@@ -1917,9 +1924,11 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                 itemCount: widget.cartItems.length,
                 itemBuilder: (context, idx) {
                   final item = widget.cartItems[idx];
-                  final isProduct = (item['type'] ?? '') == 'produit';
+                  // CartItem.type est 'product' ou 'service'
+                  final isProduct = (item['type'] ?? '') == 'product';
                   final qty = (item['quantity'] ?? 1) as int;
                   final unitPrice = (item['price'] ?? 0) as num;
+                  final resourceId = item['resourceId'] as String? ?? '';
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
@@ -1944,7 +1953,7 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: () => widget.onRemove(item['cartKey']),
+                              onTap: () => widget.onRemove(resourceId),
                               child: const Icon(
                                 Icons.close,
                                 size: 16,
@@ -1978,7 +1987,6 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                         ),
                         const SizedBox(height: 8),
                         if (isProduct) ...[
-                          // ← Contrôle quantité MODIFIABLE pour produits
                           Row(
                             children: [
                               const Text(
@@ -1992,9 +2000,7 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                               GestureDetector(
                                 onTap: qty > 1
                                     ? () => widget.onUpdateQuantity(
-                                        item['cartKey'],
-                                        qty - 1,
-                                      )
+                                        resourceId, qty - 1)
                                     : null,
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
@@ -2025,9 +2031,7 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                               ),
                               GestureDetector(
                                 onTap: () => widget.onUpdateQuantity(
-                                  item['cartKey'],
-                                  qty + 1,
-                                ),
+                                  resourceId, qty + 1),
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
                                   decoration: const BoxDecoration(
@@ -2053,7 +2057,6 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                             ],
                           ),
                         ] else ...[
-                          // Services : afficher date et créneaux (non modifiable)
                           if (item['selectedDate'] != null)
                             Text(
                               'Date : ${_formatDate(item['selectedDate'])}',
@@ -2080,7 +2083,9 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        t['display'] ?? '',
+                                        (t is Map ? t['display'] : t)
+                                                ?.toString() ??
+                                            '',
                                         style: const TextStyle(
                                           fontSize: 10,
                                           color: Color(0xFF9C27B0),
@@ -2133,12 +2138,16 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                // ── FIX PRINCIPAL : navigation vers MesReservationsPage ──
+                // Le panier est déjà persisté dans SharedPreferences via
+                // CartService, donc MesReservationsPage._init() le chargera
+                // automatiquement sans qu'on ait besoin de passer de données.
                 onPressed: () {
+                  Navigator.pop(context); // ferme le bottom sheet d'abord
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          MesReservationsPage(),
+                      builder: (_) => const MesReservationsPage(),
                     ),
                   );
                 },
@@ -2164,18 +2173,8 @@ class _CartBottomSheetState extends State<_CartBottomSheet> {
     try {
       final dt = DateTime.parse(isoDate);
       const months = [
-        'jan',
-        'fév',
-        'mar',
-        'avr',
-        'mai',
-        'jun',
-        'jul',
-        'aoû',
-        'sep',
-        'oct',
-        'nov',
-        'déc',
+        'jan', 'fév', 'mar', 'avr', 'mai', 'jun',
+        'jul', 'aoû', 'sep', 'oct', 'nov', 'déc',
       ];
       return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
     } catch (_) {
