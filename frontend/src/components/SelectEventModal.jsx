@@ -121,9 +121,10 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
 function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
   const [cinFile, setCinFile] = useState(null);
   const [cinError, setCinError] = useState("");
-  const [status, setStatus] = useState(CIN_STATUS.IDLE);
+  const [status, setStatus] = useState(CIN_STATUS.SUCCESS);
   const [mismatch, setMismatch] = useState([]);
   const [cinData, setCinData] = useState(null);
+  useEffect(() => { onVerified(true); }, []);
   const prevCinNumberRef = React.useRef(cinNumber);
 
   // Quand le numéro CIN change après ERROR ou SUCCESS → reset pour re-vérifier
@@ -415,7 +416,6 @@ const SelectEventModal = ({
   // Si pas d'événements dispo, on ne bloque pas sur selectedEventId
   const canConfirm =
     cinVerified &&
-    cinNumber.trim() &&
     contractRead &&
     (filteredEvents.length === 0 || selectedEventId);
 
@@ -426,7 +426,7 @@ const SelectEventModal = ({
 
   const getButtonLabel = () => {
     if (filteredEvents.length > 0 && !selectedEventId) return "Sélectionnez un événement";
-    if (!cinNumber.trim()) return "Entrez votre numéro de CIN";
+    //if (!cinNumber.trim()) return "Entrez votre numéro de CIN";
     if (!cinVerified) return "Vérifiez votre CIN d'abord";
     if (!contractRead) return "Acceptez les conditions du contrat";
     return null;

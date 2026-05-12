@@ -1,54 +1,60 @@
 import Notification from "../model/Notification.js";
+import axios from "axios";
+import User from "../model/user.js";
 
-// 🔧 Fonction utilitaire pour corriger les liens
 const fixNotificationLink = (link) => {
   if (!link) return link;
-  
-  // Corriger les liens de ressources : /les_ressources/:id → /RessourceDetail/:id
   if (link.match(/\/les_ressources\/[a-fA-F0-9]{24}/)) {
     return link.replace('/les_ressources/', '/RessourceDetail/');
   }
-  
-  // Corriger les liens de demandes prestataire
-  if (link === '/demandes' || link === '/demande') {
-    return '/mes-demandes';
-  }
-  
-  // Corriger les liens de réservations organisateur
-  if (link === '/reservations' || link === '/mes-reservations-old') {
-    return '/mes-reservations';
-  }
-  
+  if (link === '/demandes' || link === '/demande') return '/mes-demandes';
+  if (link === '/reservations' || link === '/mes-reservations-old') return '/mes-reservations';
   return link;
 };
 
-// 🔔 CREATE NOTIFICATION (réutilisable partout)
-export const createNotification = async (
-  userId,
-  title,
-  message,
-  type = "info",
-  link = null
-) => {
+// 🔥 Non-bloquant
+const sendEmailViaN8n = async (userId, payload) => {
   try {
-    // ✅ Corriger le lien AVANT de le sauvegarder
-    const correctedLink = fixNotificationLink(link);
-    
-    const notification = new Notification({
-      userId,
-      title,
-      message,
-      type,
-      link: correctedLink
-    });
+    const user = await User.findById(userId);
+    if (!user?.email) return;
 
+    const BASE_URL = 'http://localhost:5173';
+
+    // ✅ Éviter la duplication si le lien est déjà une URL complète
+    const fullLink = payload.link
+      ? payload.link.startsWith('http')
+        ? payload.link
+        : `${BASE_URL}${payload.link}`
+      : BASE_URL;
+
+    const response = await axios.post(
+      'http://localhost:5678/webhook/send-email',
+      { email: user.email, ...payload, link: fullLink },
+      { timeout: 5000 }
+    );
+    console.log(`📧 Email envoyé à ${user.email} → ${response.status}`);
+  } catch (error) {
+    console.error('❌ Webhook n8n échoué:', error.message, error.code);
+  }
+};
+export const createNotification = async (userId, title, message, type = "info", link = null) => {
+  try {
+    const correctedLink = fixNotificationLink(link);
+
+    const notification = new Notification({ userId, title, message, type, link: correctedLink });
     await notification.save();
-    console.log(` Notification créée pour ${userId}: ${title} → ${correctedLink || 'pas de lien'}`);
+    console.log(`✅ Notification créée pour ${userId}: ${title} → ${correctedLink || 'pas de lien'}`);
+
+    // 🔥 Email via n8n — ne bloque pas
+    sendEmailViaN8n(userId, { title, message, type, link: correctedLink });
+
     return notification;
   } catch (error) {
     console.error("Erreur création notification:", error);
   }
 };
+
+// ... reste du fichier inchangé
 
 //  GET toutes les notifications d'un user (avec unreadCount pour le Navbar)
 export const getUserNotifications = async (req, res) => {
@@ -131,12 +137,12 @@ export const fixOldNotifications = async (req, res) => {
         { link: '/reservations' }
       ]
     });
-    
+
     let fixed = 0;
     for (const notif of oldNotifications) {
       const oldLink = notif.link;
       const newLink = fixNotificationLink(notif.link);
-      
+
       if (oldLink !== newLink) {
         notif.link = newLink;
         await notif.save();
@@ -144,10 +150,10 @@ export const fixOldNotifications = async (req, res) => {
         console.log(`✅ Notification corrigée: ${oldLink} → ${newLink}`);
       }
     }
-    
-    res.json({ 
+
+    res.json({
       message: `${fixed} notifications corrigées`,
-      fixed 
+      fixed
     });
   } catch (error) {
     console.error("Erreur correction notifications:", error);

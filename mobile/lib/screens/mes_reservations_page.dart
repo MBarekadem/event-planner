@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:image_picker/image_picker.dart';
+import 'payment_page.dart'; // adaptez le chemin selon votre structure
 
 // ─────────────────────────────────────────
 // CONSTANTS
@@ -129,8 +130,9 @@ class Reservation {
       eventTitle: evt?['title'],
       resourceName: res?['name'],
       resourceType: res?['type'],
-      resourcePrice:
-          res?['price'] != null ? (res!['price'] as num).toDouble() : null,
+      resourcePrice: res?['price'] != null
+          ? (res!['price'] as num).toDouble()
+          : null,
       resourceId: res?['_id'],
     );
   }
@@ -222,9 +224,7 @@ class ApiService {
       request.fields['resource'] = resourceId;
       request.fields['dateDebut'] = dateDebut;
       request.fields['dateFin'] = dateFin;
-      request.files.add(
-        await http.MultipartFile.fromPath('cin', cinFile.path),
-      );
+      request.files.add(await http.MultipartFile.fromPath('cin', cinFile.path));
       final streamed = await request.send();
       return streamed.statusCode == 200 || streamed.statusCode == 201;
     } else {
@@ -670,15 +670,27 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
     return Row(
       children: [
         Expanded(
-          child: _StatCard(label: 'Panier', value: '$_totalCart', color: kIndigo),
+          child: _StatCard(
+            label: 'Panier',
+            value: '$_totalCart',
+            color: kIndigo,
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _StatCard(label: 'Envoyées', value: '$_totalSent', color: kPurple),
+          child: _StatCard(
+            label: 'Envoyées',
+            value: '$_totalSent',
+            color: kPurple,
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _StatCard(label: 'Acceptées', value: '$_totalAccepted', color: kGreen),
+          child: _StatCard(
+            label: 'Acceptées',
+            value: '$_totalAccepted',
+            color: kGreen,
+          ),
         ),
       ],
     );
@@ -796,10 +808,14 @@ class _MesReservationsPageState extends State<MesReservationsPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: _ReservationCard(
                 res: r,
-                onPay: () => Navigator.pushNamed(
+                onPay: () => Navigator.push(
                   context,
-                  '/payer',
-                  arguments: {'amount': r.resourcePrice, 'locationId': r.id},
+                  MaterialPageRoute(
+                    builder: (_) => PaymentPage(
+                      amount: r.resourcePrice ?? 0,
+                      locationId: r.id,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -939,8 +955,7 @@ class _CartRow extends StatelessWidget {
                   ),
                   child: Text(
                     '1 prestation',
-                    style:
-                        TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1083,9 +1098,12 @@ class _ReservationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Color borderColor = Colors.grey.shade100;
-    if (res.isPaid) borderColor = const Color(0xFFC4B5FD);
-    else if (res.isAccepted) borderColor = const Color(0xFFA7F3D0);
-    else if (res.isRefused) borderColor = const Color(0xFFFECACA);
+    if (res.isPaid)
+      borderColor = const Color(0xFFC4B5FD);
+    else if (res.isAccepted)
+      borderColor = const Color(0xFFA7F3D0);
+    else if (res.isRefused)
+      borderColor = const Color(0xFFFECACA);
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1103,13 +1121,19 @@ class _ReservationCard extends StatelessWidget {
             children: [
               Text(
                 res.resourceName ?? 'Ressource',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               _StatusPill(status: res.status),
               if (res.resourceType != null) _TypeBadge(type: res.resourceType!),
               if (res.isPaid)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEDE9FE),
                     borderRadius: BorderRadius.circular(20),
@@ -1141,14 +1165,20 @@ class _ReservationCard extends StatelessWidget {
                 width: MediaQuery.of(context).size.width * 0.65,
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined,
-                        size: 12, color: Colors.grey.shade400),
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 12,
+                      color: Colors.grey.shade400,
+                    ),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         '${_fmt(res.dateDebut)} → ${_fmt(res.dateFin)}',
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade400,
+                        ),
                       ),
                     ),
                   ],
@@ -1177,8 +1207,9 @@ class _ReservationCard extends StatelessWidget {
               color: kPurple,
               onTap: () async {
                 if (res.invoice != null && res.invoice!.isNotEmpty) {
-                  final Uri url =
-                      Uri.parse('http://localhost:5000/${res.invoice}');
+                  final Uri url = Uri.parse(
+                    'http://localhost:5000/${res.invoice}',
+                  );
                   await launchUrl(url, mode: LaunchMode.externalApplication);
                 }
               },
@@ -1241,14 +1272,15 @@ class _ActionButton extends StatelessWidget {
       child: ElevatedButton.icon(
         onPressed: onTap,
         icon: Icon(icon, size: 14),
-        label: Text(label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 10),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           elevation: 0,
         ),
       ),
@@ -1296,9 +1328,14 @@ class _StatusPill extends StatelessWidget {
         children: [
           Icon(cfg.icon, size: 10, color: cfg.fg),
           const SizedBox(width: 3),
-          Text(cfg.label,
-              style: TextStyle(
-                  fontSize: 10, fontWeight: FontWeight.w600, color: cfg.fg)),
+          Text(
+            cfg.label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: cfg.fg,
+            ),
+          ),
         ],
       ),
     );
@@ -1318,17 +1355,14 @@ class _TypeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color:
-            isProduct ? const Color(0xFFDCFCE7) : const Color(0xFFEDE9FE),
+        color: isProduct ? const Color(0xFFDCFCE7) : const Color(0xFFEDE9FE),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isProduct
-                ? Icons.inventory_2_outlined
-                : Icons.group_outlined,
+            isProduct ? Icons.inventory_2_outlined : Icons.group_outlined,
             size: 10,
             color: isProduct
                 ? const Color(0xFF166534)
@@ -1358,7 +1392,11 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  const _StatCard({required this.label, required this.value, required this.color});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1417,7 +1455,10 @@ class _AuthSheetState extends State<_AuthSheet> {
   final _lastCtrl = TextEditingController();
 
   Future<void> _submit() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       Map<String, dynamic>? res;
       if (_isLogin) {
@@ -1446,7 +1487,11 @@ class _AuthSheetState extends State<_AuthSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1457,26 +1502,31 @@ class _AuthSheetState extends State<_AuthSheet> {
         children: [
           Row(
             children: [
-              const Text('Connexion requise',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const Text(
+                'Connexion requise',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
               const Spacer(),
               GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: const Icon(Icons.close, size: 20)),
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.close, size: 20),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               _TabBtn(
-                  label: 'Se connecter',
-                  active: _isLogin,
-                  onTap: () => setState(() => _isLogin = true)),
+                label: 'Se connecter',
+                active: _isLogin,
+                onTap: () => setState(() => _isLogin = true),
+              ),
               const SizedBox(width: 8),
               _TabBtn(
-                  label: 'S\'inscrire',
-                  active: !_isLogin,
-                  onTap: () => setState(() => _isLogin = false)),
+                label: 'S\'inscrire',
+                active: !_isLogin,
+                onTap: () => setState(() => _isLogin = false),
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -1486,7 +1536,11 @@ class _AuthSheetState extends State<_AuthSheet> {
             _Field(ctrl: _lastCtrl, hint: 'Nom'),
             const SizedBox(height: 10),
           ],
-          _Field(ctrl: _emailCtrl, hint: 'Email', keyboardType: TextInputType.emailAddress),
+          _Field(
+            ctrl: _emailCtrl,
+            hint: 'Email',
+            keyboardType: TextInputType.emailAddress,
+          ),
           const SizedBox(height: 10),
           _Field(ctrl: _passCtrl, hint: 'Mot de passe', obscure: true),
           if (_error != null) ...[
@@ -1502,15 +1556,24 @@ class _AuthSheetState extends State<_AuthSheet> {
                 backgroundColor: kIndigo,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 elevation: 0,
               ),
               child: _loading
                   ? const SizedBox(
-                      width: 18, height: 18,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : Text(_isLogin ? 'Se connecter' : 'S\'inscrire',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(
+                      _isLogin ? 'Se connecter' : 'S\'inscrire',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
             ),
           ),
         ],
@@ -1523,7 +1586,11 @@ class _TabBtn extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _TabBtn({required this.label, required this.active, required this.onTap});
+  const _TabBtn({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1535,12 +1602,14 @@ class _TabBtn extends StatelessWidget {
           color: active ? kIndigo : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Text(label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: active ? Colors.white : Colors.grey.shade600,
-            )),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: active ? Colors.white : Colors.grey.shade600,
+          ),
+        ),
       ),
     );
   }
@@ -1551,7 +1620,12 @@ class _Field extends StatelessWidget {
   final String hint;
   final bool obscure;
   final TextInputType? keyboardType;
-  const _Field({required this.ctrl, required this.hint, this.obscure = false, this.keyboardType});
+  const _Field({
+    required this.ctrl,
+    required this.hint,
+    this.obscure = false,
+    this.keyboardType,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1563,7 +1637,10 @@ class _Field extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey.shade200),
@@ -1628,8 +1705,10 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Photo CIN',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const Text(
+              'Photo CIN',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -1692,9 +1771,14 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 32,
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.85,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1711,18 +1795,27 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Choisir un événement',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w700)),
-                      Text('Pour : ${widget.item.resourceName}',
-                          style: TextStyle(
-                              fontSize: 12, color: Colors.grey.shade500)),
+                      const Text(
+                        'Choisir un événement',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        'Pour : ${widget.item.resourceName}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.close, size: 20)),
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close, size: 20),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -1731,9 +1824,10 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
             if (widget.events.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Aucun événement trouvé.',
-                    style: TextStyle(
-                        fontSize: 13, color: Colors.grey.shade500)),
+                child: Text(
+                  'Aucun événement trouvé.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                ),
               )
             else
               ...widget.events.map(
@@ -1765,26 +1859,33 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                                 : const Color(0xFFEEF2FF),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(Icons.event_outlined,
-                              color: _selectedEventId == e.id
-                                  ? Colors.white
-                                  : kIndigo,
-                              size: 18),
+                          child: Icon(
+                            Icons.event_outlined,
+                            color: _selectedEventId == e.id
+                                ? Colors.white
+                                : kIndigo,
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Text(e.title,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _selectedEventId == e.id
-                                    ? kIndigo
-                                    : Colors.black87,
-                              )),
+                          child: Text(
+                            e.title,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _selectedEventId == e.id
+                                  ? kIndigo
+                                  : Colors.black87,
+                            ),
+                          ),
                         ),
                         if (_selectedEventId == e.id)
-                          const Icon(Icons.check_circle,
-                              color: kIndigo, size: 18),
+                          const Icon(
+                            Icons.check_circle,
+                            color: kIndigo,
+                            size: 18,
+                          ),
                       ],
                     ),
                   ),
@@ -1797,15 +1898,17 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
               child: OutlinedButton.icon(
                 onPressed: widget.onCreateNew,
                 icon: const Icon(Icons.add, size: 16),
-                label: const Text('Créer un nouvel événement',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                label: const Text(
+                  'Créer un nouvel événement',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: kIndigo,
                   side: const BorderSide(color: kIndigo),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
@@ -1822,9 +1925,7 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                     ? const Color(0xFFECFDF5)
                     : const Color(0xFFFFFBEB),
                 border: Border.all(
-                  color: _contractAccepted
-                      ? kGreen
-                      : const Color(0xFFFDE68A),
+                  color: _contractAccepted ? kGreen : const Color(0xFFFDE68A),
                 ),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1844,7 +1945,9 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: _contractAccepted ? kGreen : const Color(0xFF92400E),
+                          color: _contractAccepted
+                              ? kGreen
+                              : const Color(0xFF92400E),
                         ),
                       ),
                     ],
@@ -1885,8 +1988,11 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: _contractAccepted
-                              ? const Icon(Icons.check,
-                                  color: Colors.white, size: 14)
+                              ? const Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: 14,
+                                )
                               : null,
                         ),
                         const SizedBox(width: 10),
@@ -1914,7 +2020,9 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
               decoration: BoxDecoration(
                 color: _cinFile != null
                     ? const Color(0xFFECFDF5)
-                    : (_cinRequired ? const Color(0xFFFEF2F2) : Colors.grey.shade50),
+                    : (_cinRequired
+                          ? const Color(0xFFFEF2F2)
+                          : Colors.grey.shade50),
                 border: Border.all(
                   color: _cinFile != null
                       ? kGreen
@@ -1947,8 +2055,11 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                         const Spacer(),
                         GestureDetector(
                           onTap: () => setState(() => _cinFile = null),
-                          child: Icon(Icons.close,
-                              size: 16, color: Colors.grey.shade400),
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.grey.shade400,
+                          ),
                         ),
                       ],
                     ],
@@ -1957,7 +2068,10 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                   Text(
                     'Importez une photo de votre CIN (recto) pour valider votre identité.',
                     style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade500, height: 1.4),
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   if (_cinFile != null) ...[
@@ -1976,8 +2090,10 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
                       child: TextButton.icon(
                         onPressed: _showPickerOptions,
                         icon: const Icon(Icons.refresh, size: 14),
-                        label: const Text('Changer la photo',
-                            style: TextStyle(fontSize: 12)),
+                        label: const Text(
+                          'Changer la photo',
+                          style: TextStyle(fontSize: 12),
+                        ),
                         style: TextButton.styleFrom(foregroundColor: kIndigo),
                       ),
                     ),
@@ -2015,16 +2131,18 @@ class _SelectEventSheetState extends State<_SelectEventSheet> {
               child: ElevatedButton.icon(
                 onPressed: _selectedEventId == null ? null : _tryConfirm,
                 icon: const Icon(Icons.send, size: 16),
-                label: const Text('Confirmer et envoyer',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                label: const Text(
+                  'Confirmer et envoyer',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kIndigo,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.grey.shade300,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
               ),
@@ -2043,8 +2161,11 @@ class _PickerOption extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _PickerOption(
-      {required this.icon, required this.label, required this.onTap});
+  const _PickerOption({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2060,12 +2181,15 @@ class _PickerOption extends StatelessWidget {
           children: [
             Icon(icon, color: kIndigo, size: 22),
             const SizedBox(height: 6),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: kIndigo)),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: kIndigo,
+              ),
+            ),
           ],
         ),
       ),
@@ -2129,7 +2253,10 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
       setState(() => _error = 'Veuillez importer votre photo CIN.');
       return;
     }
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     final id = await ApiService.createEvent({
       'title': _titleCtrl.text.trim(),
       'description': _descCtrl.text.trim(),
@@ -2147,9 +2274,14 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-          20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 24),
-      constraints:
-          BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -2161,12 +2293,15 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
           children: [
             Row(
               children: [
-                const Text('Nouvel événement',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                const Text(
+                  'Nouvel événement',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
                 const Spacer(),
                 GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: const Icon(Icons.close, size: 20)),
+                  onTap: () => Navigator.pop(context),
+                  child: const Icon(Icons.close, size: 20),
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -2178,15 +2313,21 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
             GestureDetector(
               onTap: _pickDate,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 13,
+                ),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade200),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined,
-                        size: 16, color: Colors.grey.shade400),
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 16,
+                      color: Colors.grey.shade400,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       _date != null
@@ -2239,14 +2380,21 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: _contractAccepted
-                          ? const Icon(Icons.check, color: Colors.white, size: 14)
+                          ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 14,
+                            )
                           : null,
                     ),
                     const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
                         'J\'accepte les conditions générales du contrat de réservation',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -2272,35 +2420,43 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.credit_card_outlined,
-                          size: 16,
-                          color: _cinFile != null
-                              ? kGreen
-                              : Colors.grey.shade600),
+                      Icon(
+                        Icons.credit_card_outlined,
+                        size: 16,
+                        color: _cinFile != null ? kGreen : Colors.grey.shade600,
+                      ),
                       const SizedBox(width: 6),
-                      Text('Photo CIN *',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: _cinFile != null ? kGreen : Colors.black87,
-                          )),
+                      Text(
+                        'Photo CIN *',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _cinFile != null ? kGreen : Colors.black87,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),
                   if (_cinFile != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(_cinFile!,
-                          height: 100,
-                          width: double.infinity,
-                          fit: BoxFit.cover),
+                      child: Image.file(
+                        _cinFile!,
+                        height: 100,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
                       onTap: () => setState(() => _cinFile = null),
-                      child: Text('Supprimer',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade400)),
+                      child: Text(
+                        'Supprimer',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
                     ),
                   ] else ...[
                     Row(
@@ -2340,8 +2496,10 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
                     const Icon(Icons.error_outline, color: kRed, size: 16),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(_error!,
-                          style: const TextStyle(fontSize: 12, color: kRed)),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(fontSize: 12, color: kRed),
+                      ),
                     ),
                   ],
                 ),
@@ -2357,7 +2515,8 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
                 child: _loading
@@ -2365,9 +2524,14 @@ class _QuickEventSheetState extends State<_QuickEventSheet> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2))
-                    : const Text('Créer et envoyer la demande',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Créer et envoyer la demande',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
               ),
             ),
           ],

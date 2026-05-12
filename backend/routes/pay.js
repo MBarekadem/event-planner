@@ -34,5 +34,25 @@ router.post("/", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// Dans votre fichier de routes pay.js, ajoutez cette route
+router.post("/create-payment-method", async (req, res) => {
+  try {
+    const { cardNumber, expMonth, expYear, cvc, name } = req.body;
 
+    const paymentMethod = await stripe.paymentMethods.create({
+      type: "card",
+      card: {
+        number: cardNumber,
+        exp_month: expMonth,
+        exp_year: expYear,
+        cvc: cvc,
+      },
+      billing_details: { name },
+    });
+
+    res.json({ paymentMethodId: paymentMethod.id });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
 export default router;

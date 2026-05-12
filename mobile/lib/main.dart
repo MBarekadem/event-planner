@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-
+import 'package:flutter_stripe/flutter_stripe.dart';
 
 import 'screens/onboarding_screen.dart';
 import 'screens/auth_screen.dart';
@@ -9,6 +9,9 @@ import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  Stripe.publishableKey =
+      'pk_test_51TNBjcRqjNGfrecsmctWpoSvbhepNtLN3BB3Suu95rFDQxHxxgSoIIyoWMJzQ1sD39F4Ddvi0PynxJp8zqECQe9m00K8iR1o62'; // votre clé publique
+  await Stripe.instance.applySettings();
 
   final prefs = await SharedPreferences.getInstance();
   final token = prefs.getString('token');
