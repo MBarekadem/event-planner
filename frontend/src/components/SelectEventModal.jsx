@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   X, Calendar, ChevronRight, Upload, CheckCircle,
-  AlertCircle, Loader, FileText, ExternalLink, ShieldCheck
+  AlertCircle, Loader, FileText, ExternalLink, ShieldCheck, User
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -19,9 +19,15 @@ const getLocalUser = () => {
    Statuts CIN
 ───────────────────────────────────────────────── */
 const CIN_STATUS = {
-  IDLE: "idle", UPLOADING: "uploading",
-  VERIFYING: "verifying", SUCCESS: "success", ERROR: "error",
+  IDLE: "idle",
+  UPLOADING: "uploading",
+  VERIFYING: "verifying",
+  SUCCESS: "success",
+  ERROR: "error",
 };
+
+// ✅ Durée d'attente n8n (n8n prend ~13s → on attend 15s)
+const N8N_WAIT_MS = 20000;
 
 /* ─────────────────────────────────────────────────
    Modal Termes du contrat
@@ -44,7 +50,6 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
         className="bg-white rounded-2xl shadow-2xl flex flex-col"
         style={{ width: "100%", maxWidth: 700, maxHeight: "90vh" }}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center">
@@ -60,7 +65,6 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
           </button>
         </div>
 
-        {/* Contenu */}
         <div className="flex-1 overflow-hidden">
           {hasPdf ? (
             <div className="flex flex-col h-full">
@@ -100,7 +104,6 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t bg-gray-50 flex-shrink-0">
           <button
             onClick={onClose}
@@ -121,18 +124,19 @@ function TermsModal({ isOpen, onClose, terms, resourceName }) {
 function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
   const [cinFile, setCinFile] = useState(null);
   const [cinError, setCinError] = useState("");
-  const [status, setStatus] = useState(CIN_STATUS.SUCCESS);
+  const [status, setStatus] = useState(CIN_STATUS.IDLE);
   const [mismatch, setMismatch] = useState([]);
   const [cinData, setCinData] = useState(null);
-  useEffect(() => { onVerified(true); }, []);
+  // ✅ Timer visible pendant l'attente n8n
+  const [waitSeconds, setWaitSeconds] = useState(0);
+
   const prevCinNumberRef = React.useRef(cinNumber);
 
-  // Quand le numéro CIN change après ERROR ou SUCCESS → reset pour re-vérifier
+  // Reset quand le numéro CIN change après ERROR/SUCCESS
   useEffect(() => {
     const prev = prevCinNumberRef.current;
     prevCinNumberRef.current = cinNumber;
     if (prev === cinNumber) return;
-
     if (status === CIN_STATUS.ERROR || status === CIN_STATUS.SUCCESS) {
       setStatus(CIN_STATUS.IDLE);
       setCinError("");
@@ -164,30 +168,108 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
     onVerified(false);
   };
 
+  // ✅ Nettoie le préfixe "=" ajouté par n8n sur les valeurs
+  const stripEq = (val) =>
+    typeof val === "string" ? val.replace(/^=/, "").trim() : val ?? "";
+
+  // ✅ Attente avec timer visible
+  const waitWithTimer = (ms) =>
+    new Promise((resolve) => {
+      let elapsed = 0;
+      setWaitSeconds(0);
+      const interval = setInterval(() => {
+        elapsed += 1;
+        setWaitSeconds(elapsed);
+      }, 1000);
+      setTimeout(() => {
+        clearInterval(interval);
+        resolve();
+      }, ms);
+    });
+
   const verifyCIN = async () => {
     if (!cinFile) return;
     const user = getLocalUser();
     if (!user) { setCinError("Impossible de récupérer les données utilisateur."); return; }
 
     try {
-      // ÉTAPE 1 : envoi du fichier au webhook n8n
+      // ── ÉTAPE 1 : envoi fichier + infos user au webhook n8n ──
       setStatus(CIN_STATUS.UPLOADING);
       const formData = new FormData();
       formData.append("file", cinFile);
+      formData.append("firstname", user.firstname || "");
+      formData.append("lastname", user.lastname || "");
+      formData.append("userId", user._id || "");
+
       await axios.post("http://localhost:5678/webhook/transfer", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      // ÉTAPE 2 : attente du traitement n8n puis lecture du résultat
+      // ── ÉTAPE 2 : attendre que n8n traite (~13s) avec barre de progression ──
       setStatus(CIN_STATUS.VERIFYING);
-      await new Promise((r) => setTimeout(r, 3000));
+      await waitWithTimer(N8N_WAIT_MS);
 
+      // ── ÉTAPE 3 : récupérer le résultat stocké par n8n ──
       const { data } = await axios.get("http://localhost:5000/api/cin");
+
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        setCinError("Aucune donnée CIN disponible. Veuillez d'abord envoyer une image.");
+        setStatus(CIN_STATUS.ERROR);
+        onVerified(false);
+        return;
+      }
+
       const cinInfo = Array.isArray(data) ? data[0] : data;
+
+      // ✅ Parser nameMatchDetails — n8n envoie "[object Object]" ou JSON string
+      if (cinInfo && typeof cinInfo.nameMatchDetails === "string") {
+        const cleaned = stripEq(cinInfo.nameMatchDetails);
+        try {
+          cinInfo.nameMatchDetails = JSON.parse(cleaned);
+        } catch {
+          cinInfo.nameMatchDetails = null;
+        }
+      }
+
+      // ✅ Parser nameMatch — n8n envoie "=false" / "=true" comme string
+      if (typeof cinInfo?.nameMatch === "string") {
+        cinInfo.nameMatch = stripEq(cinInfo.nameMatch) === "true";
+      }
+
       setCinData(cinInfo);
 
-      const stripNum = (val) => (val || "").replace(/^=/, "").replace(/\s/g, "").trim();
-      const cinNumberExtracted = stripNum(cinInfo?.cin);
+      // ── VÉRIFICATION 1 : Nom et Prénom (profil ↔ CIN) ──
+      if (cinInfo?.nameMatch === false) {
+        setStatus(CIN_STATUS.ERROR);
+        const details = cinInfo.nameMatchDetails || {};
+        const mismatches = [];
+
+        if (details.firstnameMatch === false || details.firstnameMatch === "false") {
+          mismatches.push({
+            field: "Prénom",
+            cin: details.cinFirstname || "—",
+            user: details.userFirstname || "—",
+          });
+        }
+        if (details.lastnameMatch === false || details.lastnameMatch === "false") {
+          mismatches.push({
+            field: "Nom",
+            cin: details.cinLastname || "—",
+            user: details.userLastname || "—",
+          });
+        }
+
+        setMismatch(
+          mismatches.length > 0
+            ? mismatches
+            : [{ field: "Nom / Prénom", cin: "—", user: "—" }]
+        );
+        onVerified(false);
+        return;
+      }
+
+      // ── VÉRIFICATION 2 : Numéro CIN ──
+      const cinNumberExtracted = stripEq(cinInfo?.cin).replace(/\s/g, "");
 
       if (!cinNumberExtracted) {
         setCinError("Document invalide ou illisible. Veuillez importer une CIN tunisienne valide.");
@@ -209,15 +291,17 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
         setMismatch([{
           field: "Numéro CIN",
           cin: cinNumberExtracted,
-          user: cinNumberEntered || "—",
+          user: cinNumberEntered,
         }]);
         onVerified(false);
         return;
       }
 
+      // ── TOUT OK ──
       setStatus(CIN_STATUS.SUCCESS);
       onVerified(true);
 
+      // Mise à jour CIN en base (non bloquant)
       try {
         const token = localStorage.getItem("token");
         await axios.put(
@@ -240,8 +324,25 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
 
   const isLoading = status === CIN_STATUS.UPLOADING || status === CIN_STATUS.VERIFYING;
 
+  const user = getLocalUser();
+  const userDisplayName = user
+    ? `${user.firstname || ""} ${user.lastname || ""}`.trim()
+    : null;
+
   return (
     <div className="border-t pt-4 space-y-3">
+
+      {/* Identité du compte connecté */}
+      {userDisplayName && (
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+          <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+          <p className="text-xs text-gray-500">
+            Vérification pour le compte :{" "}
+            <span className="font-semibold text-gray-700">{userDisplayName}</span>
+          </p>
+        </div>
+      )}
+
       {/* Numéro CIN */}
       <div>
         <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -292,14 +393,30 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
         </div>
       )}
 
-      {/* Erreur */}
+      {/* Erreur générale */}
       {cinError && (
         <p className="flex items-center gap-1.5 text-xs text-rose-600 font-medium">
           <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {cinError}
         </p>
       )}
 
-      {/* Mismatch numéro */}
+      {/* ✅ Barre de progression pendant l'attente n8n */}
+      {status === CIN_STATUS.VERIFYING && (
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-[11px] text-gray-400">
+            <span>Analyse de la CIN en cours...</span>
+            <span>{waitSeconds}s / {N8N_WAIT_MS / 1000}s</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-1000"
+              style={{ width: `${Math.min((waitSeconds / (N8N_WAIT_MS / 1000)) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Mismatch : nom/prénom ou numéro CIN */}
       {mismatch.length > 0 && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-2">
           <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
@@ -310,13 +427,23 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
             <div key={m.field} className="rounded-lg bg-white border border-rose-100 px-3 py-2">
               <p className="text-[11px] font-bold text-rose-600 uppercase tracking-wide mb-1">{m.field}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div><span className="text-gray-400">CIN : </span><span className="font-semibold text-gray-700">{m.cin || "—"}</span></div>
-                <div><span className="text-gray-400">Saisi : </span><span className="font-semibold text-gray-700">{m.user || "—"}</span></div>
+                <div>
+                  <span className="text-gray-400">Sur la CIN : </span>
+                  <span className="font-semibold text-gray-700">{m.cin || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400">
+                    {m.field === "Numéro CIN" ? "Saisi : " : "Votre profil : "}
+                  </span>
+                  <span className="font-semibold text-gray-700">{m.user || "—"}</span>
+                </div>
               </div>
             </div>
           ))}
           <p className="text-[11px] text-rose-500">
-            Corrigez le numéro ci-dessus — la vérification se relancera automatiquement.
+            {mismatch.some(m => m.field === "Numéro CIN")
+              ? "Corrigez le numéro ci-dessus — la vérification se relancera automatiquement."
+              : "La CIN présentée ne correspond pas au compte connecté. Utilisez la CIN associée à ce compte."}
           </p>
         </div>
       )}
@@ -349,7 +476,9 @@ function CINVerifier({ onVerified, cinNumber, onCinNumberChange }) {
           {isLoading ? (
             <>
               <Loader className="w-4 h-4 animate-spin" />
-              {status === CIN_STATUS.UPLOADING ? "Envoi en cours..." : "Vérification en cours..."}
+              {status === CIN_STATUS.UPLOADING
+                ? "Envoi en cours..."
+                : `Analyse en cours... (${waitSeconds}s)`}
             </>
           ) : (
             <>
@@ -381,7 +510,6 @@ const SelectEventModal = ({
   const [contractRead, setContractRead] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
 
-  // Reset complet à chaque ouverture
   useEffect(() => {
     if (isOpen) {
       setSelectedEventId("");
@@ -394,7 +522,6 @@ const SelectEventModal = ({
 
   if (!isOpen) return null;
 
-  // Filtrage des événements par date
   const resourceDay = resourceDate ? new Date(resourceDate) : null;
   const toDateOnly = (d) => {
     const date = new Date(d);
@@ -402,18 +529,17 @@ const SelectEventModal = ({
   };
   const filteredEvents = resourceDay
     ? events.filter((ev) => {
-      const start = toDateOnly(ev.dateDebut);
-      const end = toDateOnly(ev.dateFin);
-      const res = toDateOnly(resourceDay);
-      return res >= start && res <= end;
-    })
+        const start = toDateOnly(ev.dateDebut);
+        const end = toDateOnly(ev.dateFin);
+        const res = toDateOnly(resourceDay);
+        return res >= start && res <= end;
+      })
     : [];
 
   const hasTermsPdf = resource?.terms?.file && resource.terms.file.trim() !== "";
   const hasTermsText = resource?.terms?.text && resource.terms.text.trim() !== "";
   const hasTerms = hasTermsPdf || hasTermsText;
 
-  // Si pas d'événements dispo, on ne bloque pas sur selectedEventId
   const canConfirm =
     cinVerified &&
     contractRead &&
@@ -426,18 +552,14 @@ const SelectEventModal = ({
 
   const getButtonLabel = () => {
     if (filteredEvents.length > 0 && !selectedEventId) return "Sélectionnez un événement";
-    //if (!cinNumber.trim()) return "Entrez votre numéro de CIN";
     if (!cinVerified) return "Vérifiez votre CIN d'abord";
     if (!contractRead) return "Acceptez les conditions du contrat";
     return null;
   };
   const buttonLabel = getButtonLabel();
-  console.log("RESOURCE:", resource);
-  console.log("TERMS:", resource?.terms);
 
   return (
     <>
-      {/* Modal termes */}
       <TermsModal
         isOpen={showTerms}
         onClose={() => setShowTerms(false)}
@@ -445,7 +567,6 @@ const SelectEventModal = ({
         resourceName={resource?.name ?? resource?.resourceName}
       />
 
-      {/* Modal principal */}
       <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
 
@@ -499,10 +620,11 @@ const SelectEventModal = ({
                     <button
                       key={event._id}
                       onClick={() => setSelectedEventId(event._id)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all ${selectedEventId === event._id
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-200 hover:border-blue-300"
-                        }`}
+                      className={`w-full text-left p-3 rounded-xl border transition-all ${
+                        selectedEventId === event._id
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-blue-300"
+                      }`}
                     >
                       <p className="font-medium text-gray-900">{event.title}</p>
                       <p className="text-xs text-gray-500 mt-1">
@@ -515,14 +637,14 @@ const SelectEventModal = ({
               </>
             )}
 
-            {/* ✅ Vérification CIN — TOUJOURS VISIBLE */}
+            {/* Vérification CIN */}
             <CINVerifier
               onVerified={setCinVerified}
               cinNumber={cinNumber}
               onCinNumberChange={setCinNumber}
             />
 
-            {/* ✅ Conditions du contrat — TOUJOURS VISIBLE */}
+            {/* Conditions du contrat */}
             <div className="border-t pt-4 space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-700">Conditions du contrat</p>
@@ -533,10 +655,6 @@ const SelectEventModal = ({
                 )}
               </div>
 
-              {/* Bouton consulter */}
-
-
-              {/* Indicateur type contrat */}
               {hasTerms && (
                 <p className="text-[11px] text-gray-400 flex items-center gap-1">
                   <FileText className="w-3 h-3" />
@@ -544,7 +662,6 @@ const SelectEventModal = ({
                 </p>
               )}
 
-              {/* ✅ Checkbox acceptation — TOUJOURS VISIBLE */}
               <label className="flex items-start gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -557,7 +674,7 @@ const SelectEventModal = ({
                   <button
                     type="button"
                     onClick={(e) => {
-                      e.stopPropagation(); // 🔥 TRÈS IMPORTANT
+                      e.stopPropagation();
                       setShowTerms(true);
                     }}
                     className="text-blue-600 hover:underline font-medium"
@@ -576,9 +693,11 @@ const SelectEventModal = ({
                 ${canConfirm
                   ? "text-white hover:opacity-90"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
-              style={canConfirm
-                ? { background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 4px 14px rgba(37,99,235,0.35)" }
-                : {}}
+              style={
+                canConfirm
+                  ? { background: "linear-gradient(135deg,#2563eb,#1d4ed8)", boxShadow: "0 4px 14px rgba(37,99,235,0.35)" }
+                  : {}
+              }
             >
               {buttonLabel
                 ? buttonLabel
@@ -586,7 +705,6 @@ const SelectEventModal = ({
               }
             </button>
 
-            {/* Lien créer événement — affiché seulement s'il y a des événements aussi */}
             {filteredEvents.length > 0 && (
               <button
                 onClick={onCreateNew}

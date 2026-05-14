@@ -109,12 +109,16 @@ class _ProfileScreenState extends State<ProfileScreen>
           Uri.parse('$_baseUrl/api/users/adore/$userId'),
           headers: headers,
         ),
-        http.get(Uri.parse('$_baseUrl/api/locations/my'), headers: headers),
+        http.get(
+          Uri.parse('$_baseUrl/api/location/get_my_locations'),
+          headers: headers,
+        ),
       ]);
 
       debugPrint('📊 Events status: ${results[0].statusCode}');
       debugPrint('📊 Events body: ${results[0].body}');
       debugPrint('📊 Favoris status: ${results[1].statusCode}');
+      debugPrint('📦 Factures body: ${results[2].body}');
 
       if (mounted) {
         setState(() {

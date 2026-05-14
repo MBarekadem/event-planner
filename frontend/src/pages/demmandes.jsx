@@ -108,7 +108,7 @@ export default function MesDemandes() {
                 clientName: loc.organisateur
                     ? `${loc.organisateur.firstname} ${loc.organisateur.lastname}`
                     : 'Client inconnu',
-                cin: loc.organisateur?.passportOrCid,
+                cin: loc.organisateur?.cin,
                 tel: loc.organisateur?.numTel,
                 region: loc.organisateur?.locationName,
                 eventName: loc.event?.title || 'Événement inconnu',

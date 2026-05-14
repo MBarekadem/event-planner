@@ -35,7 +35,7 @@ class _HomeContentScreenState extends State<HomeContentScreen>
   static const String baseUrl = 'http://localhost:5000/api';
 
   final List<Map<String, dynamic>> _categories = [
-    {'label': 'Planner',    'icon': Icons.calendar_month,  'value': 'salle'},
+    {'label': 'Salle',    'icon': Icons.calendar_month,  'value': 'salle'},
     {'label': 'Traiteurs',  'icon': Icons.restaurant,      'value': 'traiteur'},
     {'label': 'Décor',      'icon': Icons.auto_fix_high,   'value': 'decoration'},
     {'label': 'Photo',      'icon': Icons.camera_alt,      'value': 'photographe'},
@@ -577,7 +577,7 @@ class _HomeContentScreenState extends State<HomeContentScreen>
   Widget _buildRecommendationsCarousel() {
     if (_loadingRecs) {
       return SizedBox(
-        height: 190,
+        height: 240,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -589,7 +589,7 @@ class _HomeContentScreenState extends State<HomeContentScreen>
     if (_recommendedResources.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: 190,
+      height: 200,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
