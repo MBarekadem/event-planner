@@ -53,13 +53,14 @@ class SelectEventModel {
   });
 
   factory SelectEventModel.fromJson(Map<String, dynamic> j) => SelectEventModel(
-        id: j['_id'] ?? '',
-        title: j['title'] ?? 'Sans titre',
-        dateDebut:
-            j['dateDebut'] != null ? DateTime.tryParse(j['dateDebut']) : null,
-        dateFin: j['dateFin'] != null ? DateTime.tryParse(j['dateFin']) : null,
-        category: j['category'],
-      );
+    id: j['_id'] ?? '',
+    title: j['title'] ?? 'Sans titre',
+    dateDebut: j['dateDebut'] != null
+        ? DateTime.tryParse(j['dateDebut'])
+        : null,
+    dateFin: j['dateFin'] != null ? DateTime.tryParse(j['dateFin']) : null,
+    category: j['category'],
+  );
 }
 
 class ResourceTerms {
@@ -137,8 +138,10 @@ class _SelectEventSheetState extends State<SelectEventSheet>
   @override
   void initState() {
     super.initState();
-    _fadeCtrl =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+    _fadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _fadeCtrl.forward();
     _loadUser();
@@ -168,22 +171,47 @@ class _SelectEventSheetState extends State<SelectEventSheet>
       }
     }
   }
-
   // ── Helpers ──
   List<SelectEventModel> get _filteredEvents {
-    if (widget.resourceDate == null) return widget.events;
+  return widget.events.where((ev) {
+
+    // ignorer les événements sans dates
+    if (ev.dateDebut == null || ev.dateFin == null) {
+      return false;
+    }
+
+    // si aucune date ressource → afficher tous
+    if (widget.resourceDate == null) {
+      return true;
+    }
+
     final resDay = _dateOnly(widget.resourceDate!);
-    return widget.events.where((ev) {
-      if (ev.dateDebut == null || ev.dateFin == null) return true;
-      final start = _dateOnly(ev.dateDebut!);
-      final end = _dateOnly(ev.dateFin!);
-      return !resDay.isBefore(start) && !resDay.isAfter(end);
-    }).toList();
-  }
+    final start = _dateOnly(ev.dateDebut!);
+    final end = _dateOnly(ev.dateFin!);
+
+    // dateDebut < resourceDate < dateFin
+    return resDay.isAfter(start) && resDay.isBefore(end);
+
+  }).toList();
+}
 
   DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-  static const _frMonths = ['', 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  static const _frMonths = [
+    '',
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
 
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')} ${_frMonths[d.month]} ${d.year}';
@@ -246,12 +274,12 @@ class _SelectEventSheetState extends State<SelectEventSheet>
   }
 
   void _removeCin() => setState(() {
-        _cinFile = null;
-        _cinStatus = _CinStatus.idle;
-        _cinError = null;
-        _mismatch = [];
-        _cinSuccessLabel = null;
-      });
+    _cinFile = null;
+    _cinStatus = _CinStatus.idle;
+    _cinError = null;
+    _mismatch = [];
+    _cinSuccessLabel = null;
+  });
 
   // ── CIN verify — polling toutes les 3s, max 60s, CIN uniquement ──
   static const int _kPollIntervalSec = 3;
@@ -280,12 +308,14 @@ class _SelectEventSheetState extends State<SelectEventSheet>
       // ── ÉTAPE 1 : upload vers webhook n8n ──
       final req = http.MultipartRequest('POST', Uri.parse(_kN8nUrl));
       if (_token.isNotEmpty) req.headers['Authorization'] = 'Bearer $_token';
-      req.files.add(await http.MultipartFile.fromPath(
-        'file',
-        _cinFile!.path,
-        filename: _cinFile!.path.split('/').last,
-        contentType: MediaType('image', 'jpeg'),
-      ));
+      req.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          _cinFile!.path,
+          filename: _cinFile!.path.split('/').last,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      );
       req.fields['firstname'] = _userFirstname;
       req.fields['lastname'] = _userLastname;
       req.fields['userId'] = _userId;
@@ -302,7 +332,10 @@ class _SelectEventSheetState extends State<SelectEventSheet>
       });
       _timer?.cancel();
       _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-        if (!mounted) { t.cancel(); return; }
+        if (!mounted) {
+          t.cancel();
+          return;
+        }
         setState(() => _waitSeconds++);
       });
 
@@ -326,7 +359,9 @@ class _SelectEventSheetState extends State<SelectEventSheet>
           final decoded = jsonDecode(res.body);
           final candidate = decoded is List && decoded.isNotEmpty
               ? decoded[0] as Map<String, dynamic>
-              : decoded is Map<String, dynamic> ? decoded : null;
+              : decoded is Map<String, dynamic>
+              ? decoded
+              : null;
 
           // Résultat valide = champ cin non vide
           final rawCin = _normalize(_stripEq(candidate?['cin']));
@@ -356,7 +391,8 @@ class _SelectEventSheetState extends State<SelectEventSheet>
       if (extracted.isEmpty) {
         setState(() {
           _cinStatus = _CinStatus.error;
-          _cinError = 'Document invalide ou illisible. Importez une CIN tunisienne valide.';
+          _cinError =
+              'Document invalide ou illisible. Importez une CIN tunisienne valide.';
         });
         return;
       }
@@ -379,14 +415,16 @@ class _SelectEventSheetState extends State<SelectEventSheet>
 
       // Mise à jour CIN profil (non bloquant)
       if (_token.isNotEmpty) {
-        http.put(
-          Uri.parse('$_kBaseUrl/users/update-cin'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $_token',
-          },
-          body: jsonEncode({'cin': extracted}),
-        ).catchError((_) {});
+        http
+            .put(
+              Uri.parse('$_kBaseUrl/users/update-cin'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $_token',
+              },
+              body: jsonEncode({'cin': extracted}),
+            )
+            .catchError((_) {});
       }
     } catch (e) {
       _timer?.cancel();
@@ -647,12 +685,14 @@ class _SelectEventSheetState extends State<SelectEventSheet>
           style: const TextStyle(fontSize: 12, color: _kGray500),
         ),
         const SizedBox(height: 10),
-        ...events.map((e) => _EventTile(
-              event: e,
-              selected: _selectedEventId == e.id,
-              onTap: () => setState(() => _selectedEventId = e.id),
-              fmtDate: _fmtDate,
-            )),
+        ...events.map(
+          (e) => _EventTile(
+            event: e,
+            selected: _selectedEventId == e.id,
+            onTap: () => setState(() => _selectedEventId = e.id),
+            fmtDate: _fmtDate,
+          ),
+        ),
       ],
     );
   }
@@ -661,7 +701,8 @@ class _SelectEventSheetState extends State<SelectEventSheet>
   Widget _buildCinSection() {
     final displayName = '$_userFirstname $_userLastname'.trim();
     final isLoading =
-        _cinStatus == _CinStatus.uploading || _cinStatus == _CinStatus.verifying;
+        _cinStatus == _CinStatus.uploading ||
+        _cinStatus == _CinStatus.verifying;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,7 +745,8 @@ class _SelectEventSheetState extends State<SelectEventSheet>
           controller: _cinNumberCtrl,
           onChanged: (v) {
             _cinNumber = v;
-            if (_cinStatus == _CinStatus.error || _cinStatus == _CinStatus.success) {
+            if (_cinStatus == _CinStatus.error ||
+                _cinStatus == _CinStatus.success) {
               setState(() {
                 _cinStatus = _CinStatus.idle;
                 _cinError = null;
@@ -722,7 +764,10 @@ class _SelectEventSheetState extends State<SelectEventSheet>
         // Progress bar
         if (_cinStatus == _CinStatus.verifying) ...[
           const SizedBox(height: 12),
-          _ProgressBar(seconds: _waitSeconds, total: _SelectEventSheetState._kMaxWaitSec),
+          _ProgressBar(
+            seconds: _waitSeconds,
+            total: _SelectEventSheetState._kMaxWaitSec,
+          ),
         ],
 
         // General error
@@ -773,7 +818,11 @@ class _SelectEventSheetState extends State<SelectEventSheet>
           ),
           child: Column(
             children: [
-              Icon(Icons.upload_outlined, size: 28, color: Colors.grey.shade300),
+              Icon(
+                Icons.upload_outlined,
+                size: 28,
+                color: Colors.grey.shade300,
+              ),
               const SizedBox(height: 6),
               Text(
                 'Cliquez pour importer votre CIN',
@@ -808,7 +857,8 @@ class _SelectEventSheetState extends State<SelectEventSheet>
     }
 
     final isLoading =
-        _cinStatus == _CinStatus.uploading || _cinStatus == _CinStatus.verifying;
+        _cinStatus == _CinStatus.uploading ||
+        _cinStatus == _CinStatus.verifying;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -831,8 +881,8 @@ class _SelectEventSheetState extends State<SelectEventSheet>
                 color: _cinStatus == _CinStatus.success
                     ? const Color(0xFF065F46)
                     : _cinStatus == _CinStatus.error
-                        ? const Color(0xFF991B1B)
-                        : _kGray700,
+                    ? const Color(0xFF991B1B)
+                    : _kGray700,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -896,19 +946,31 @@ class _SelectEventSheetState extends State<SelectEventSheet>
 
             // Terms indicator
             if (widget.terms?.hasPdf == true)
-              Row(children: [
-                Icon(Icons.picture_as_pdf_outlined, size: 12, color: _kGray400),
-                const SizedBox(width: 4),
-                Text('Contrat PDF disponible',
-                    style: TextStyle(fontSize: 11, color: _kGray400)),
-              ])
+              Row(
+                children: [
+                  Icon(
+                    Icons.picture_as_pdf_outlined,
+                    size: 12,
+                    color: _kGray400,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Contrat PDF disponible',
+                    style: TextStyle(fontSize: 11, color: _kGray400),
+                  ),
+                ],
+              )
             else if (widget.terms?.hasText == true)
-              Row(children: [
-                Icon(Icons.article_outlined, size: 12, color: _kGray400),
-                const SizedBox(width: 4),
-                Text('Conditions textuelles disponibles',
-                    style: TextStyle(fontSize: 11, color: _kGray400)),
-              ])
+              Row(
+                children: [
+                  Icon(Icons.article_outlined, size: 12, color: _kGray400),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Conditions textuelles disponibles',
+                    style: TextStyle(fontSize: 11, color: _kGray400),
+                  ),
+                ],
+              )
             else
               Text(
                 'Appuyez pour consulter les conditions générales de location/réservation.',
@@ -977,7 +1039,13 @@ class _SelectEventSheetState extends State<SelectEventSheet>
         color: _canConfirm ? null : _kGray100,
         borderRadius: BorderRadius.circular(14),
         boxShadow: _canConfirm
-            ? [BoxShadow(color: _kBlue.withOpacity(0.3), blurRadius: 14, offset: const Offset(0, 4))]
+            ? [
+                BoxShadow(
+                  color: _kBlue.withOpacity(0.3),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ]
             : [],
       ),
       child: Material(
@@ -992,9 +1060,7 @@ class _SelectEventSheetState extends State<SelectEventSheet>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  _canConfirm
-                      ? Icons.check_circle_outline
-                      : Icons.lock_outline,
+                  _canConfirm ? Icons.check_circle_outline : Icons.lock_outline,
                   size: 16,
                   color: _canConfirm ? Colors.white : _kGray400,
                 ),
@@ -1009,7 +1075,11 @@ class _SelectEventSheetState extends State<SelectEventSheet>
                 ),
                 if (_canConfirm) ...[
                   const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, size: 16, color: Colors.white),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                 ],
               ],
             ),
@@ -1146,8 +1216,15 @@ class _CinTextField extends StatelessWidget {
         hintText: 'Ex : 08361985',
         hintStyle: const TextStyle(color: _kGray400, fontSize: 13),
         labelStyle: const TextStyle(fontSize: 12, color: _kGray500),
-        prefixIcon: const Icon(Icons.badge_outlined, size: 18, color: _kGray400),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        prefixIcon: const Icon(
+          Icons.badge_outlined,
+          size: 18,
+          color: _kGray400,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _kGray200),
@@ -1181,10 +1258,14 @@ class _ProgressBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Analyse de la CIN en cours...',
-                style: TextStyle(fontSize: 11, color: _kGray400)),
-            Text('${seconds}s / ${total}s',
-                style: const TextStyle(fontSize: 11, color: _kGray400)),
+            const Text(
+              'Analyse de la CIN en cours...',
+              style: TextStyle(fontSize: 11, color: _kGray400),
+            ),
+            Text(
+              '${seconds}s / ${total}s',
+              style: const TextStyle(fontSize: 11, color: _kGray400),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -1223,8 +1304,10 @@ class _ErrorBanner extends StatelessWidget {
           const Icon(Icons.error_outline, color: _kRed, size: 14),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(message,
-                style: const TextStyle(fontSize: 11, color: _kRed)),
+            child: Text(
+              message,
+              style: const TextStyle(fontSize: 11, color: _kRed),
+            ),
           ),
         ],
       ),
@@ -1259,71 +1342,85 @@ class _MismatchCard extends StatelessWidget {
               Text(
                 'Les informations suivantes ne correspondent pas :',
                 style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700, color: _kRed),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _kRed,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ...mismatch.map((m) => Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: const Color(0xFFFECACA)),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      m['field']!.toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w700,
-                        color: _kRed,
-                        letterSpacing: 0.5,
-                      ),
+          ...mismatch.map(
+            (m) => Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFFFECACA)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    m['field']!.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: _kRed,
+                      letterSpacing: 0.5,
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Sur la CIN',
-                                  style: TextStyle(
-                                      fontSize: 9, color: _kGray400)),
-                              Text(m['cin'] ?? '—',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                m['field'] == 'Numéro CIN'
-                                    ? 'Saisi'
-                                    : 'Votre profil',
-                                style: const TextStyle(
-                                    fontSize: 9, color: _kGray400),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Sur la CIN',
+                              style: TextStyle(fontSize: 9, color: _kGray400),
+                            ),
+                            Text(
+                              m['cin'] ?? '—',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
-                              Text(m['profil'] ?? '—',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600)),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              )),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              m['field'] == 'Numéro CIN'
+                                  ? 'Saisi'
+                                  : 'Votre profil',
+                              style: const TextStyle(
+                                fontSize: 9,
+                                color: _kGray400,
+                              ),
+                            ),
+                            Text(
+                              m['profil'] ?? '—',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
           Text(
             isCinNumber
                 ? 'Corrigez le numéro ci-dessus — la vérification se relancera.'
@@ -1369,9 +1466,13 @@ class _SuccessBanner extends StatelessWidget {
                   ),
                 ),
                 if (label != null && label!.isNotEmpty)
-                  Text(label!,
-                      style: const TextStyle(
-                          fontSize: 11, color: Color(0xFF059669))),
+                  Text(
+                    label!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF059669),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1418,7 +1519,9 @@ class _VerifyButton extends StatelessWidget {
           foregroundColor: _kBlue,
           side: const BorderSide(color: _kBlue, width: 1.5),
           padding: const EdgeInsets.symmetric(vertical: 13),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1427,15 +1530,15 @@ class _VerifyButton extends StatelessWidget {
               const SizedBox(
                 width: 14,
                 height: 14,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: _kBlue),
+                child: CircularProgressIndicator(strokeWidth: 2, color: _kBlue),
               )
             else
               const Icon(Icons.verified_user_outlined, size: 16),
             const SizedBox(width: 8),
-            Text(label,
-                style:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       ),
@@ -1495,8 +1598,11 @@ class _TermsSheet extends StatelessWidget {
                     color: _kBlueLight,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.description_outlined,
-                      color: _kBlue, size: 17),
+                  child: const Icon(
+                    Icons.description_outlined,
+                    color: _kBlue,
+                    size: 17,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1542,19 +1648,19 @@ class _TermsSheet extends StatelessWidget {
             child: hasPdf
                 ? _PdfNotice(pdfPath: terms!.file!)
                 : hasText
-                    ? SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          terms!.text!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            height: 1.7,
-                            color: _kGray700,
-                          ),
-                        ),
-                      )
-                    : const _EmptyTerms(),
+                ? SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      terms!.text!,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        height: 1.7,
+                        color: _kGray700,
+                      ),
+                    ),
+                  )
+                : const _EmptyTerms(),
           ),
 
           const Divider(height: 1, color: _kGray100),
@@ -1562,7 +1668,11 @@ class _TermsSheet extends StatelessWidget {
           // Accept button
           Padding(
             padding: EdgeInsets.fromLTRB(
-                20, 14, 20, MediaQuery.of(context).padding.bottom + 14),
+              20,
+              14,
+              20,
+              MediaQuery.of(context).padding.bottom + 14,
+            ),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -1572,13 +1682,13 @@ class _TermsSheet extends StatelessWidget {
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   elevation: 0,
                 ),
                 child: const Text(
                   'J\'accepte les conditions du contrat',
-                  style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
@@ -1612,16 +1722,20 @@ class _PdfNotice extends StatelessWidget {
                 color: _kBlueLight,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.picture_as_pdf_outlined,
-                  color: _kBlue, size: 32),
+              child: const Icon(
+                Icons.picture_as_pdf_outlined,
+                color: _kBlue,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 14),
             const Text(
               'Document PDF du prestataire',
               style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: _kGray700),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _kGray700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -1631,8 +1745,7 @@ class _PdfNotice extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: _kGray50,
                 border: Border.all(color: _kGray200),
@@ -1641,7 +1754,10 @@ class _PdfNotice extends StatelessWidget {
               child: SelectableText(
                 pdfUrl,
                 style: const TextStyle(
-                    fontSize: 11, color: _kBlue, fontFamily: 'monospace'),
+                  fontSize: 11,
+                  color: _kBlue,
+                  fontFamily: 'monospace',
+                ),
               ),
             ),
           ],
@@ -1663,14 +1779,19 @@ class _EmptyTerms extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.description_outlined, size: 42, color: Colors.grey.shade200),
+          Icon(
+            Icons.description_outlined,
+            size: 42,
+            color: Colors.grey.shade200,
+          ),
           const SizedBox(height: 10),
           Text(
             'Aucune condition fournie',
             style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade400),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade400,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1696,7 +1817,11 @@ class _PickerSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: EdgeInsets.fromLTRB(
-          20, 16, 20, MediaQuery.of(context).padding.bottom + 20),
+        20,
+        16,
+        20,
+        MediaQuery.of(context).padding.bottom + 20,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -1748,8 +1873,11 @@ class _PickerTile extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _PickerTile(
-      {required this.icon, required this.label, required this.onTap});
+  const _PickerTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1788,19 +1916,19 @@ class _SmallBadge extends StatelessWidget {
   final Color bg;
   final Color fg;
 
-  const _SmallBadge(
-      {required this.label, required this.bg, required this.fg});
+  const _SmallBadge({required this.label, required this.bg, required this.fg});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+      ),
       child: Text(
         label,
-        style: TextStyle(
-            fontSize: 9, fontWeight: FontWeight.w700, color: fg),
+        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: fg),
       ),
     );
   }

@@ -141,7 +141,7 @@ class _OnboardingPage extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: Image.asset(
-                      'assets/logo.png',
+                      'assets/logo1.png',
                       fit: BoxFit.contain,
                       errorBuilder: (_, __, ___) => const Center(
                         child: Icon(
