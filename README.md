@@ -1,10 +1,6 @@
 
 eventplanner315@gmail.com
 pass: event123456
-
- rafinee : reservation
- 3ina hajjet na9ssin insina ma3mlnehomche comme:
- annulation une demmande lors que le status est en attend
  
  **** comment les notifications sont en temps reelle ?
  repnse : les notification dan snotre projet ne sont pas en temps réelle elles sonts créés avec la fonction createNotification(...) et sauvgarder en MongoDB et la recuperation ce fait a lappele avec la la fonction getUserNotifications qui permet de lire depuis la base ( a chaque fois on fait refresh aussi ) afin de l'envoyer au frontend 
