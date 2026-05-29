@@ -8,3 +8,5 @@ pass: event123456
  Client → demande → Serveur → répond → FIN *****
 
 google login f modal et mobile 
+il faut ajouter interface suiv dans le prestataire  interfaces:
+lacceptation et refus des rservations 
