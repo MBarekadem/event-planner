@@ -8,6 +8,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
+// ─── Import du logo ───────────────────────────────────────────────────────────
+import logo from "../assets/logo.png"; // ✅ Placez votre logo dans src/assets/logo.png
+
 // ─── API ──────────────────────────────────────────────────────────────────────
 const API_URL = "http://localhost:5000/api";
 const getToken = () => localStorage.getItem("token");
@@ -63,7 +66,7 @@ const UserAvatar = ({ user, size = "md", showOnlineStatus = true, hasPendingRequ
           onError={() => setImgError(true)}
         />
       ) : (
-        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold shadow-lg`}>
+        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-violet-600 to-purple-500 flex items-center justify-center text-white font-semibold shadow-lg`}>
           {initials || "?"}
         </div>
       )}
@@ -171,39 +174,29 @@ export default function Navbar() {
     }
   };
 
-  // ✅ FONCTION CORRIGÉE : Gère la navigation depuis les notifications
   const handleNotificationClick = (notification) => {
     if (!notification.read) {
       markAsRead(notification._id);
     }
-    
+
     let link = notification.link;
-    
-    // ✅ CORRECTION DES LIENS (fallback au cas où le backend n'a pas corrigé)
+
     if (link) {
-      // Corriger les liens de ressources : /les_ressources/:id → /RessourceDetail/:id
       if (link.match(/\/les_ressources\/[a-fA-F0-9]{24}/)) {
         link = link.replace('/les_ressources/', '/RessourceDetail/');
-        console.log('🔗 Lien ressource corrigé (frontend):', link);
       }
-      
-      // Corriger les liens de demandes prestataire
       if (link === '/demandes' || link === '/demande') {
         link = '/mes-demandes';
-        console.log('🔗 Lien demande corrigé (frontend):', link);
       }
-      
-      // Corriger les liens de réservations organisateur
       if (link === '/reservations' || link === '/mes-reservations-old') {
         link = '/mes-reservations';
-        console.log('🔗 Lien réservation corrigé (frontend):', link);
       }
     }
-    
+
     if (link) {
       navigate(link);
     }
-    
+
     setShowNotifications(false);
   };
 
@@ -337,14 +330,14 @@ export default function Navbar() {
             className="absolute right-0 mt-2 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
             style={{ top: '100%' }}
           >
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-violet-50 to-purple-50">
               <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                <Bell size={16} className="text-blue-600" /> Notifications
+                <Bell size={16} className="text-violet-600" /> Notifications
               </h3>
               {unreadCount > 0 && (
                 <button
                   onClick={markAllAsRead}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 bg-white rounded-lg"
+                  className="text-xs text-violet-600 hover:text-violet-700 font-medium px-2 py-1 bg-white rounded-lg"
                 >
                   Tout marquer
                 </button>
@@ -353,14 +346,14 @@ export default function Navbar() {
             <div className="max-h-96 overflow-y-auto">
               {loadingNotif ? (
                 <div className="p-8 text-center text-gray-500">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600 mx-auto mb-3"></div>
                   Chargement...
                 </div>
               ) : notifications.length > 0 ? (
                 notifications.map((notif) => (
                   <div
                     key={notif._id}
-                    className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-all ${!notif.read ? 'bg-blue-50/30' : ''}`}
+                    className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-all ${!notif.read ? 'bg-violet-50/30' : ''}`}
                     onClick={() => handleNotificationClick(notif)}
                   >
                     <div className="flex items-start gap-3">
@@ -372,7 +365,7 @@ export default function Navbar() {
                         <p className="text-gray-500 text-xs mt-1 line-clamp-2">{notif.message}</p>
                         <p className="text-gray-400 text-[10px] mt-1">{formatDate(notif.createdAt)}</p>
                       </div>
-                      {!notif.read && <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-2" />}
+                      {!notif.read && <div className="w-2 h-2 bg-violet-600 rounded-full flex-shrink-0 mt-2" />}
                       <button
                         onClick={(e) => deleteNotification(notif._id, e)}
                         className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
@@ -429,7 +422,7 @@ export default function Navbar() {
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
             >
-              <div className={`px-4 py-3 border-b border-gray-100 ${isAdmin ? "bg-gradient-to-r from-red-50 to-orange-50" : "bg-gradient-to-r from-blue-50 to-purple-50"}`}>
+              <div className={`px-4 py-3 border-b border-gray-100 ${isAdmin ? "bg-gradient-to-r from-red-50 to-orange-50" : "bg-gradient-to-r from-violet-50 to-purple-50"}`}>
                 <div className="flex items-center gap-3">
                   {isAdmin ? (
                     <AdminAvatar size="sm" showOnlineStatus={false} />
@@ -464,16 +457,16 @@ export default function Navbar() {
                 {isPrestataire && (
                   <motion.button whileHover={{ x: 5 }}
                     onClick={() => { navigate("/profileP"); setIsProfileMenuOpen(false); }}
-                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
                   >
-                    <User className="w-5 h-5 text-blue-600" />
+                    <User className="w-5 h-5 text-violet-600" />
                     <span>Mon Profil</span>
                   </motion.button>
                 )}
                 {isPrestataire && (
                   <motion.button whileHover={{ x: 5 }}
                     onClick={() => { navigate("/mes-demandes"); setIsProfileMenuOpen(false); }}
-                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
                   >
                     <Bell className="w-5 h-5 text-orange-500" />
                     <span>Mes demandes</span>
@@ -488,9 +481,9 @@ export default function Navbar() {
                 {isOrganisateur && (
                   <motion.button whileHover={{ x: 5 }}
                     onClick={() => { navigate("/profileO"); setIsProfileMenuOpen(false); }}
-                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
                   >
-                    <User className="w-5 h-5 text-blue-600" />
+                    <User className="w-5 h-5 text-violet-600" />
                     <span>Mon Profil</span>
                   </motion.button>
                 )}
@@ -498,7 +491,7 @@ export default function Navbar() {
                 {isOrganisateur && (
                   <motion.button whileHover={{ x: 5 }}
                     onClick={() => { navigate("/mes-reservations"); setIsProfileMenuOpen(false); }}
-                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
                   >
                     <ShoppingCart className="w-5 h-5 text-purple-600" />
                     <span>Mes réservations</span>
@@ -508,7 +501,7 @@ export default function Navbar() {
                 {isPrestataire && (
                   <motion.button whileHover={{ x: 5 }}
                     onClick={() => { navigate("/add-resource"); setIsProfileMenuOpen(false); }}
-                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                    className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
                   >
                     <PlusCircle className="w-5 h-5 text-orange-600" />
                     <span>Publier une ressource</span>
@@ -540,13 +533,18 @@ export default function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
 
-        {/* Logo */}
+        {/* ✅ Logo avec image + texte */}
         <motion.div
           whileHover={{ scale: 1.05 }}
-          className="flex items-center space-x-2 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer"
           onClick={handleLogoClick}
         >
-          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <img
+            src={logo}
+            alt="YallaEvents"
+            className="w-10 h-10 object-contain"
+          />
+          <span className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-500 bg-clip-text text-transparent">
             YallaEvents
           </span>
         </motion.div>
@@ -562,12 +560,12 @@ export default function Navbar() {
               onClick={() => handleNavClick(item.path)}
               className={`relative font-medium group transition-colors ${
                 isActive(item.path)
-                  ? "text-blue-600"
-                  : "text-gray-700 hover:text-blue-600"
+                  ? "text-violet-600"
+                  : "text-gray-700 hover:text-violet-600"
               }`}
             >
               {item.name}
-              <span className={`absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 transition-all duration-300 ${
+              <span className={`absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-violet-600 to-purple-500 transition-all duration-300 ${
                 isActive(item.path) ? "w-full" : "w-0 group-hover:w-full"
               }`} />
             </motion.button>
@@ -579,7 +577,7 @@ export default function Navbar() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => navigate("/login")}
-                className="px-6 py-2.5 border-2 border-blue-600 text-blue-600 rounded-xl font-semibold hover:bg-blue-50 transition-all"
+                className="px-6 py-2.5 border-2 border-violet-600 text-violet-600 rounded-xl font-semibold hover:bg-violet-50 transition-all"
               >
                 Se connecter
               </motion.button>
@@ -587,7 +585,7 @@ export default function Navbar() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => navigate("/signup")}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
+                className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-purple-500 text-white rounded-xl font-semibold shadow-lg shadow-violet-500/30 hover:shadow-xl transition-all"
               >
                 S'inscrire
               </motion.button>
@@ -603,13 +601,13 @@ export default function Navbar() {
                 >
                   {unreadCount > 0 ? (
                     <>
-                      <BellRing size={20} className="text-blue-600" />
+                      <BellRing size={20} className="text-violet-600" />
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                     </>
                   ) : (
-                    <Bell size={20} className="text-gray-600 hover:text-blue-600 transition-colors" />
+                    <Bell size={20} className="text-gray-600 hover:text-violet-600 transition-colors" />
                   )}
                 </motion.button>
                 <NotificationsPanel />
@@ -645,14 +643,14 @@ export default function Navbar() {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     onClick={() => { navigate("/login"); setIsOpen(false); }}
-                    className="w-full px-4 py-3 border-2 border-blue-600 text-blue-600 rounded-lg font-semibold hover:bg-blue-50 transition-all"
+                    className="w-full px-4 py-3 border-2 border-violet-600 text-violet-600 rounded-lg font-semibold hover:bg-violet-50 transition-all"
                   >
                     Se connecter
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     onClick={() => { navigate("/signup"); setIsOpen(false); }}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold"
+                    className="w-full px-4 py-3 bg-gradient-to-r from-violet-600 to-purple-500 text-white rounded-lg font-semibold"
                   >
                     S'inscrire
                   </motion.button>
@@ -660,7 +658,7 @@ export default function Navbar() {
               ) : (
                 <>
                   {/* Profil mobile */}
-                  <div className={`mb-4 p-4 rounded-xl ${isAdmin ? "bg-gradient-to-r from-red-50 to-orange-50" : "bg-gradient-to-r from-blue-50 to-purple-50"}`}>
+                  <div className={`mb-4 p-4 rounded-xl ${isAdmin ? "bg-gradient-to-r from-red-50 to-orange-50" : "bg-gradient-to-r from-violet-50 to-purple-50"}`}>
                     <div className="flex items-center gap-3">
                       {isAdmin ? (
                         <AdminAvatar size="lg" showOnlineStatus={true} />
@@ -691,8 +689,8 @@ export default function Navbar() {
                       onClick={() => handleNavClick(item.path)}
                       className={`block w-full text-left py-2 px-4 rounded-lg transition ${
                         isActive(item.path)
-                          ? "bg-blue-50 text-blue-600 font-semibold"
-                          : "text-gray-700 hover:bg-blue-50"
+                          ? "bg-violet-50 text-violet-600 font-semibold"
+                          : "text-gray-700 hover:bg-violet-50"
                       }`}
                     >
                       {item.name}
@@ -715,16 +713,16 @@ export default function Navbar() {
                   {isPrestataire && (
                     <motion.button whileHover={{ x: 10 }}
                       onClick={() => { navigate("/profileP"); setIsOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                     >
-                      <User className="w-5 h-5 text-blue-600" />
+                      <User className="w-5 h-5 text-violet-600" />
                       <span>Mon Profil</span>
                     </motion.button>
                   )}
                   {isPrestataire && (
                     <motion.button whileHover={{ x: 10 }}
                       onClick={() => { navigate("/mes-demandes"); setIsOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                     >
                       <Bell className="w-5 h-5 text-orange-500" />
                       <span>Mes demandes</span>
@@ -739,9 +737,9 @@ export default function Navbar() {
                   {isOrganisateur && (
                     <motion.button whileHover={{ x: 10 }}
                       onClick={() => { navigate("/profileO"); setIsOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                     >
-                      <User className="w-5 h-5 text-blue-600" />
+                      <User className="w-5 h-5 text-violet-600" />
                       <span>Mon Profil</span>
                     </motion.button>
                   )}
@@ -749,7 +747,7 @@ export default function Navbar() {
                   {isOrganisateur && (
                     <motion.button whileHover={{ x: 10 }}
                       onClick={() => { navigate("/mes-reservations"); setIsOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                     >
                       <ShoppingCart className="w-5 h-5 text-purple-600" />
                       <span>Mes réservations</span>
@@ -759,7 +757,7 @@ export default function Navbar() {
                   {isPrestataire && (
                     <motion.button whileHover={{ x: 10 }}
                       onClick={() => { navigate("/add-resource"); setIsOpen(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                     >
                       <PlusCircle className="w-5 h-5 text-orange-600" />
                       <span>Publier une ressource</span>

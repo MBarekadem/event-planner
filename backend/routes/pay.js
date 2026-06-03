@@ -7,7 +7,7 @@ const stripe = new Stripe("sk_test_51TNBjcRqjNGfrecsK0kC8PkziXuHYfccmwjjKtp6t2WI
 
 router.post("/", async (req, res) => {
     try {
-        console.log("✅ PAY API HIT");
+        console.log(" PAY API HIT");
 
         const { amount, locationId } = req.body;
 

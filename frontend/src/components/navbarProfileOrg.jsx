@@ -1,4 +1,4 @@
-// components/NavbarProfileOrg.jsx - Version avec tous les éléments à droite
+// components/NavbarProfileOrg.jsx
 
 import {
   Menu, X, ChevronDown, LogOut, User,
@@ -7,6 +7,9 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
+
+// ✅ Import du logo
+import logo from "../assets/logo.png"; // Placez votre logo dans src/assets/logo.png
 
 // ─── UserAvatar ───────────────────────────────────────────────────────────────
 const UserAvatar = ({ user, size = "md", showOnlineStatus = true }) => {
@@ -33,7 +36,7 @@ const UserAvatar = ({ user, size = "md", showOnlineStatus = true }) => {
           onError={() => setImgError(true)}
         />
       ) : (
-        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-semibold shadow-lg`}>
+        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-violet-600 to-purple-500 flex items-center justify-center text-white font-semibold shadow-lg`}>
           {initials}
         </div>
       )}
@@ -45,11 +48,11 @@ const UserAvatar = ({ user, size = "md", showOnlineStatus = true }) => {
 };
 
 // ─── NavbarProfileOrg ─────────────────────────────────────────────────────────
-export default function NavbarProfileOrg({ 
-  notifications = [], 
-  unreadCount = 0, 
-  onMarkAsRead, 
-  onMarkAllAsRead 
+export default function NavbarProfileOrg({
+  notifications = [],
+  unreadCount = 0,
+  onMarkAsRead,
+  onMarkAllAsRead
 }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,7 +64,6 @@ export default function NavbarProfileOrg({
   const notificationsRef = useRef(null);
 
   const user = JSON.parse(localStorage.getItem("user"));
-  const role = user?.role;
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -125,7 +127,6 @@ export default function NavbarProfileOrg({
     setShowNotifications(false);
   }, [location.pathname]);
 
-  // Liens de navigation pour l'organisateur
   const navLinks = [
     { name: "Accueil", path: "/" },
     { name: "Ressources", path: "/les_ressources" },
@@ -136,7 +137,6 @@ export default function NavbarProfileOrg({
     return location.pathname.startsWith(path);
   };
 
-  // Composant Notifications Panel
   const NotificationsPanel = () => (
     <AnimatePresence>
       {showNotifications && (
@@ -146,12 +146,12 @@ export default function NavbarProfileOrg({
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
           className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
         >
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-violet-50 to-purple-50">
             <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-              <Bell size={16} className="text-blue-600" /> Notifications
+              <Bell size={16} className="text-violet-600" /> Notifications
             </h3>
             {unreadCount > 0 && (
-              <button onClick={markAllAsRead} className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 py-1 bg-white rounded-lg">
+              <button onClick={markAllAsRead} className="text-xs text-violet-600 hover:text-violet-700 font-medium px-2 py-1 bg-white rounded-lg">
                 Tout marquer
               </button>
             )}
@@ -161,19 +161,19 @@ export default function NavbarProfileOrg({
               notifications.map((notif) => (
                 <div
                   key={notif.id}
-                  className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-all ${!notif.read ? 'bg-blue-50/30' : ''}`}
+                  className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-all ${!notif.read ? 'bg-violet-50/30' : ''}`}
                   onClick={() => markAsRead(notif.id)}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${notif.type === 'success' ? 'bg-green-100' : 'bg-blue-100'}`}>
-                      {notif.type === 'success' ? <CheckCircle size={18} className="text-green-600" /> : <Bell size={18} className="text-blue-600" />}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${notif.type === 'success' ? 'bg-green-100' : 'bg-violet-100'}`}>
+                      {notif.type === 'success' ? <CheckCircle size={18} className="text-green-600" /> : <Bell size={18} className="text-violet-600" />}
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-900 text-sm truncate">{notif.title}</p>
                       <p className="text-gray-500 text-xs mt-1">{notif.message}</p>
                       <p className="text-gray-400 text-[10px] mt-1">il y a {notif.time}</p>
                     </div>
-                    {!notif.read && <div className="w-2 h-2 bg-blue-600 rounded-full" />}
+                    {!notif.read && <div className="w-2 h-2 bg-violet-600 rounded-full" />}
                   </div>
                 </div>
               ))
@@ -189,7 +189,6 @@ export default function NavbarProfileOrg({
     </AnimatePresence>
   );
 
-  // Composant Profile Menu
   const ProfileMenu = () => (
     <div className="relative" ref={profileMenuRef}>
       <motion.button
@@ -213,7 +212,7 @@ export default function NavbarProfileOrg({
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50"
           >
-            <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
+            <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-violet-50 to-purple-50">
               <div className="flex items-center gap-3">
                 <UserAvatar user={user} size="sm" showOnlineStatus={false} />
                 <div className="flex-1">
@@ -229,16 +228,15 @@ export default function NavbarProfileOrg({
             <div className="py-2">
               <motion.button whileHover={{ x: 5 }}
                 onClick={() => { navigate("/profileO"); setIsProfileMenuOpen(false); }}
-                className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
               >
-                <User className="w-5 h-5 text-blue-600" />
+                <User className="w-5 h-5 text-violet-600" />
                 <span>Mon Profil</span>
               </motion.button>
 
-              {/* ✅ Lien vers Mes réservations (ex-panier) */}
               <motion.button whileHover={{ x: 5 }}
                 onClick={() => { navigate("/mes-reservations"); setIsProfileMenuOpen(false); }}
-                className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-blue-50 transition-colors"
+                className="w-full px-4 py-3 flex items-center gap-3 text-gray-700 hover:bg-violet-50 transition-colors"
               >
                 <ShoppingCart className="w-5 h-5 text-purple-600" />
                 <span>Mes réservations</span>
@@ -268,20 +266,24 @@ export default function NavbarProfileOrg({
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
 
-        {/* Logo à GAUCHE */}
+        {/* ✅ Logo avec image + texte */}
         <motion.div
           whileHover={{ scale: 1.05 }}
-          className="flex items-center space-x-2 cursor-pointer"
+          className="flex items-center gap-2 cursor-pointer"
           onClick={handleLogoClick}
         >
-          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <img
+            src={logo}
+            alt="YallaEvents"
+            className="w-10 h-10 object-contain"
+          />
+          <span className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-500 bg-clip-text text-transparent">
             YallaEvents
           </span>
         </motion.div>
 
-        {/* ============ TOUS LES ÉLÉMENTS À DROITE ============ */}
+        {/* Éléments à droite */}
         <div className="hidden md:flex items-center gap-6">
-          {/* Liens de navigation */}
           {navLinks.map((item, index) => (
             <motion.button
               key={item.name}
@@ -289,18 +291,20 @@ export default function NavbarProfileOrg({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               onClick={() => handleNavClick(item.path)}
-              className={`relative font-medium group transition-colors ${isActive(item.path) && !item.path.startsWith("#")
-                  ? "text-blue-600"
-                  : "text-gray-700 hover:text-blue-600"
-                }`}
+              className={`relative font-medium group transition-colors ${
+                isActive(item.path) && !item.path.startsWith("#")
+                  ? "text-violet-600"
+                  : "text-gray-700 hover:text-violet-600"
+              }`}
             >
               {item.name}
-              <span className={`absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 transition-all duration-300 ${isActive(item.path) && !item.path.startsWith("#") ? "w-full" : "w-0 group-hover:w-full"
-                }`} />
+              <span className={`absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-violet-600 to-purple-500 transition-all duration-300 ${
+                isActive(item.path) && !item.path.startsWith("#") ? "w-full" : "w-0 group-hover:w-full"
+              }`} />
             </motion.button>
           ))}
 
-          {/* ICÔNE NOTIFICATION */}
+          {/* Notifications */}
           <div className="relative" ref={notificationsRef}>
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -310,19 +314,19 @@ export default function NavbarProfileOrg({
             >
               {unreadCount > 0 ? (
                 <>
-                  <BellRing size={20} className="text-blue-600" />
+                  <BellRing size={20} className="text-violet-600" />
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 </>
               ) : (
-                <Bell size={20} className="text-gray-600 hover:text-blue-600 transition-colors" />
+                <Bell size={20} className="text-gray-600 hover:text-violet-600 transition-colors" />
               )}
             </motion.button>
             <NotificationsPanel />
           </div>
 
-          {/* MENU PROFIL */}
+          {/* Profil */}
           <ProfileMenu />
         </div>
 
@@ -342,10 +346,8 @@ export default function NavbarProfileOrg({
             className="md:hidden overflow-hidden bg-white/95 backdrop-blur-lg"
           >
             <div className="px-6 py-4 space-y-3">
-
-              {/* Profil mobile */}
               {user && (
-                <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50">
+                <div className="mb-4 p-4 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50">
                   <div className="flex items-center gap-3">
                     <UserAvatar user={user} size="lg" showOnlineStatus={true} />
                     <div className="flex-1">
@@ -358,38 +360,36 @@ export default function NavbarProfileOrg({
                 </div>
               )}
 
-              {/* Liens */}
               {navLinks.map((item) => (
                 <motion.button
                   key={item.name}
                   whileHover={{ x: 10 }}
                   onClick={() => handleNavClick(item.path)}
-                  className={`block w-full text-left py-2 px-4 rounded-lg transition ${isActive(item.path) && !item.path.startsWith("#")
-                      ? "bg-blue-50 text-blue-600 font-semibold"
-                      : "text-gray-700 hover:bg-blue-50"
-                    }`}
+                  className={`block w-full text-left py-2 px-4 rounded-lg transition ${
+                    isActive(item.path) && !item.path.startsWith("#")
+                      ? "bg-violet-50 text-violet-600 font-semibold"
+                      : "text-gray-700 hover:bg-violet-50"
+                  }`}
                 >
                   {item.name}
                 </motion.button>
               ))}
 
-              {/* Actions utilisateur */}
               {user && (
                 <>
                   <div className="border-t border-gray-100 my-2" />
 
                   <motion.button whileHover={{ x: 10 }}
                     onClick={() => { navigate("/profileO"); setIsOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                   >
-                    <User className="w-5 h-5 text-blue-600" />
+                    <User className="w-5 h-5 text-violet-600" />
                     <span>Mon Profil</span>
                   </motion.button>
 
-                  {/* ✅ Lien mobile vers Mes réservations */}
                   <motion.button whileHover={{ x: 10 }}
                     onClick={() => { navigate("/mes-reservations"); setIsOpen(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-blue-50 rounded-lg"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-violet-50 rounded-lg"
                   >
                     <ShoppingCart className="w-5 h-5 text-purple-600" />
                     <span>Mes réservations</span>
