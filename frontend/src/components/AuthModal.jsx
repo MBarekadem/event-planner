@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { GoogleLogin } from "@react-oauth/google";
+import axios from "axios";
 
 /* ═══════════════════════════════════════════
    SVG ICONS (subset needed for AuthModal)
@@ -102,11 +104,9 @@ export default function AuthModal({ isOpen, onClose, pendingItem, onAuthSuccess 
         return;
       }
 
-      /* ✅ Stocker dans localStorage */
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      /* ✅ Callback → parent gère la suite (InfoModal + fetchReservations) */
       onAuthSuccess(data.token, data.user);
 
     } catch {
@@ -132,11 +132,10 @@ export default function AuthModal({ isOpen, onClose, pendingItem, onAuthSuccess 
       fd.append("email",     signupForm.email);
       fd.append("password",  signupForm.password);
       fd.append("role",      "organisateur");
-      
-      // ✅ AJOUT DES COORDONNÉES PAR DÉFAUT (Centre de Tunis)
+
       const defaultLocation = {
         type: "Point",
-        coordinates: [10.1815, 36.8065] // [lng, lat] - Tunis centre
+        coordinates: [10.1815, 36.8065],
       };
       fd.append("location", JSON.stringify(defaultLocation));
       fd.append("locationName", "Tunis, Tunisie");
@@ -146,31 +145,29 @@ export default function AuthModal({ isOpen, onClose, pendingItem, onAuthSuccess 
         body: fd,
       });
       const data = await res.json();
-      
+
       if (!res.ok) {
         setError(data.message || "Erreur lors de la création du compte");
         return;
       }
 
-      /* 2. Auto-login après inscription */
+      /* Auto-login après inscription */
       const loginRes  = await fetch("http://localhost:5000/api/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: signupForm.email, password: signupForm.password }),
       });
       const loginData = await loginRes.json();
-      
+
       if (!loginRes.ok) {
         setError("Compte créé mais connexion automatique échouée. Veuillez vous connecter.");
         setTab("login");
         return;
       }
 
-      /* ✅ Stocker dans localStorage */
       localStorage.setItem("token", loginData.token);
       localStorage.setItem("user", JSON.stringify(loginData.user));
 
-      /* ✅ Callback → parent gère la suite */
       onAuthSuccess(loginData.token, loginData.user);
 
     } catch (err) {
@@ -181,54 +178,31 @@ export default function AuthModal({ isOpen, onClose, pendingItem, onAuthSuccess 
     }
   };
 
-  /* ── Google Login (popup window) ── */
-  const handleGoogleLogin = () => {
-    // Ouvrir une fenêtre popup pour l'authentification Google
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      "http://localhost:5000/api/users/google",
-      "Google Login",
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
+  /* ── Google Login ── */
+  const handleGoogleSuccess = async (credentialResponse) => {
+    if (!credentialResponse?.credential) {
+      setError("Pas de token reçu de Google");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await axios.post("http://localhost:5000/api/auth/google", {
+        token: credentialResponse.credential,
+      });
 
-    // Écouter le message de retour
-    const handleMessage = async (event) => {
-      // Vérifier l'origine du message (sécurité)
-      if (event.origin !== "http://localhost:5000") return;
-      
-      if (event.data.type === "GOOGLE_AUTH_SUCCESS") {
-        // Fermer la popup
-        if (popup) popup.close();
-        
-        // Stocker les données
-        localStorage.setItem("token", event.data.token);
-        localStorage.setItem("user", JSON.stringify(event.data.user));
-        
-        // Appeler le callback
-        onAuthSuccess(event.data.token, event.data.user);
-        
-        // Nettoyer l'écouteur
-        window.removeEventListener("message", handleMessage);
-      } else if (event.data.type === "GOOGLE_AUTH_ERROR") {
-        setError(event.data.message || "Erreur lors de l'authentification Google");
-        if (popup) popup.close();
-        window.removeEventListener("message", handleMessage);
-      }
-    };
-    
-    window.addEventListener("message", handleMessage);
-    
-    // Nettoyage si la popup est fermée manuellement
-    const checkPopupClosed = setInterval(() => {
-      if (popup && popup.closed) {
-        clearInterval(checkPopupClosed);
-        window.removeEventListener("message", handleMessage);
-      }
-    }, 500);
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("user", JSON.stringify(res.data.user));
+
+      onAuthSuccess(res.data.token, res.data.user);
+    } catch (err) {
+      setError("Erreur connexion Google : " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    setError("Connexion Google échouée. Veuillez réessayer.");
   };
 
   if (!isOpen) return null;
@@ -256,7 +230,7 @@ export default function AuthModal({ isOpen, onClose, pendingItem, onAuthSuccess 
         }}
         onClick={onClose}
       >
-        {/* Card — stop propagation so clicking inside doesn't close */}
+        {/* Card */}
         <div
           className="w-full max-w-[400px] rounded-3xl bg-white overflow-hidden shadow-2xl"
           style={{ animation: "authModalIn .25s cubic-bezier(.34,1.56,.64,1)" }}
@@ -326,19 +300,19 @@ export default function AuthModal({ isOpen, onClose, pendingItem, onAuthSuccess 
               </div>
             )}
 
-            {/* ── Google button (fonctionnel avec popup) ── */}
-            <button
-              onClick={handleGoogleLogin}
-              className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 transition text-sm font-medium text-gray-700 mb-4"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continuer avec Google
-            </button>
+            {/* ── Google Login button ── */}
+            <div className="mb-4">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap={false}
+                width="360"
+                text="continue_with"
+                shape="rectangular"
+                theme="outline"
+                locale="fr"
+              />
+            </div>
 
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-1 h-px bg-gray-100" />

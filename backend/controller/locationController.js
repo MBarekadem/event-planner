@@ -9,7 +9,7 @@ import Event from "../model/event.js";
 import Dispo from "../model/disponibilite.js";
 
 // ============================
-// ✅ CRÉER UNE DEMANDE (organisateur)
+//  CRÉER UNE DEMANDE (organisateur)
 // ============================
 export const createLocation = async (req, res) => {
     try {
