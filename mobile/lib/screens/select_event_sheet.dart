@@ -171,29 +171,24 @@ class _SelectEventSheetState extends State<SelectEventSheet>
       }
     }
   }
+
   // ── Helpers ──
   List<SelectEventModel> get _filteredEvents {
-  return widget.events.where((ev) {
+    return widget.events.where((ev) {
+      if (ev.dateDebut == null || ev.dateFin == null) return false;
+      if (widget.resourceDate == null) return true;
 
-    // ignorer les événements sans dates
-    if (ev.dateDebut == null || ev.dateFin == null) {
-      return false;
-    }
+      final resDay = _dateOnly(widget.resourceDate!);
+      final start = _dateOnly(ev.dateDebut!);
+      final end = _dateOnly(ev.dateFin!);
 
-    // si aucune date ressource → afficher tous
-    if (widget.resourceDate == null) {
-      return true;
-    }
-
-    final resDay = _dateOnly(widget.resourceDate!);
-    final start = _dateOnly(ev.dateDebut!);
-    final end = _dateOnly(ev.dateFin!);
-
-    // dateDebut < resourceDate < dateFin
-    return resDay.isAfter(start) && resDay.isBefore(end);
-
-  }).toList();
-}
+      // ✅ Inclut les jours exacts de début et de fin
+      debugPrint(
+        'resDay=$resDay | start=$start | end=$end | match=${!resDay.isBefore(start) && !resDay.isAfter(end)}',
+      );
+      return !resDay.isBefore(start) && !resDay.isAfter(end);
+    }).toList();
+  }
 
   DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 

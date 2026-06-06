@@ -179,12 +179,20 @@ function ReservationCard({ res, onPay }) {
           {res.resource?.type && <TypeBadge type={res.resource.type} />}
 
           {/* ✅ Badge "Payé" */}
+
           {isPaid && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
               style={{ background: "#EDE9FE", color: "#6D28D9" }}>
               <Ic.check width={10} height={10} /> Payé
             </span>
           )}
+          {res.updatedAt && (Date.now() - new Date(res.updatedAt).getTime() < 86400000) && res.status !== "en attente" && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold animate-pulse"
+            style={{ background: "#FEF3C7", color: "#92400E" }}>
+            Nouveau
+          </span>
+          )}
+
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
@@ -516,6 +524,10 @@ export default function MesReservations() {
   };
 
   /* ── Stats ── */
+  const sortedReservations = [...reservations].sort((a, b) => {
+    const priority = { "acceptée": 0, "refusée": 1, "en attente": 2 };
+    return (priority[a.status] ?? 2) - (priority[b.status] ?? 2);
+  });
   const totalCart = cartItems.reduce((s, i) => s + (i.quantity || 1), 0);
   const totalSent = reservations.length;
   const totalAccepted = reservations.filter(r => r.status === "acceptée").length;
@@ -658,7 +670,8 @@ export default function MesReservations() {
                 </span>
               </div>
               <div className="flex flex-col gap-3">
-                {reservations.map((res) => (
+                {sortedReservations.map((res) => (
+
                   <ReservationCard
                     key={res._id}
                     res={res}
