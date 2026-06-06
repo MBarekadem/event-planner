@@ -529,11 +529,11 @@ const SelectEventModal = ({
   };
   const filteredEvents = resourceDay
     ? events.filter((ev) => {
-        const start = toDateOnly(ev.dateDebut);
-        const end = toDateOnly(ev.dateFin);
-        const res = toDateOnly(resourceDay);
-        return res >= start && res <= end;
-      })
+      const start = toDateOnly(ev.dateDebut);
+      const end = toDateOnly(ev.dateFin);
+      const res = toDateOnly(resourceDay);
+      return res >= start && res <= end;
+    })
     : [];
 
   const hasTermsPdf = resource?.terms?.file && resource.terms.file.trim() !== "";
@@ -620,11 +620,10 @@ const SelectEventModal = ({
                     <button
                       key={event._id}
                       onClick={() => setSelectedEventId(event._id)}
-                      className={`w-full text-left p-3 rounded-xl border transition-all ${
-                        selectedEventId === event._id
+                      className={`w-full text-left p-3 rounded-xl border transition-all ${selectedEventId === event._id
                           ? "border-blue-500 bg-blue-50"
                           : "border-gray-200 hover:border-blue-300"
-                      }`}
+                        }`}
                     >
                       <p className="font-medium text-gray-900">{event.title}</p>
                       <p className="text-xs text-gray-500 mt-1">

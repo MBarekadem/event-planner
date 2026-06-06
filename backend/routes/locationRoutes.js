@@ -19,6 +19,5 @@ router.post("/pay", verifyToken, payLocation);  // ← ajoute ça
 // Routes pour prestataire
 router.get("/get_pres", verifyToken, getLocationsForProvider);
 router.put("/update_pres/:id", verifyToken, updateStatusByProvider);
-router.get("/get_my_locations", verifyToken, getMyLocations);
 router.get("/invoices/provider", verifyToken, getProviderInvoices);
 export default router;

@@ -143,6 +143,7 @@ function CartSidebar({ isOpen, onClose, cartItems, onRemove, onUpdateQuantity, o
    PAGE PRINCIPALE
 ───────────────────────────────────────────────── */
 export default function ResourceDetailsPage() {
+
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -183,6 +184,7 @@ export default function ResourceDetailsPage() {
   const [commentFilter, setCommentFilter] = useState("all");
 
   const [showTermsPopup, setShowTermsPopup] = useState(false);
+
 
   /* ── init ── */
   useEffect(() => {
@@ -275,6 +277,7 @@ export default function ResourceDetailsPage() {
       return;
     }
 
+
     const cartKey = buildCartKey(
       resource._id,
       selectedDate,
@@ -297,9 +300,10 @@ export default function ResourceDetailsPage() {
       type: resource.type,
       category: resource.category,
       quantity: 1,
-      totalPrice: resource.type === "service"
-        ? calculateTotalPrice() || resource.price
-        : resource.price,
+      totalPrice:
+        startDate && endDate
+          ? resource.price * getNumberOfDays() * 24
+          : (calculateTotalPrice() || resource.price),
       stock: resource.stock ?? 999,
       selectedTimes: selectedTimes.map(s => ({
         display: s.display,
@@ -315,8 +319,25 @@ export default function ResourceDetailsPage() {
     setAddedToCart(true);
     setSidebarOpen(true);
     setTimeout(() => setAddedToCart(false), 2500);
+
+    const periodTotal =
+      startDate && endDate
+        ? calculatePeriodPrice()
+        : calculateTotalPrice()
+
+    totalPrice: resource.type === "service"
+      ? periodTotal
+      : resource.price;
   };
 
+  const calculatePeriodPrice = () => {
+    if (!startDate || !endDate) return 0;
+
+    const numberOfDays = getNumberOfDays();
+    const numberOfSlots = selectedTimes.length;
+
+    return numberOfDays * numberOfSlots * resource.price;
+  };
   /* ── "Continuer mes réservations" — auth check here ── */
   const handleNavigateWithAuth = () => {
     const token = localStorage.getItem("token");
@@ -347,6 +368,7 @@ export default function ResourceDetailsPage() {
     if (check < today) return false;
     return !unavailableDates.includes(check.toDateString());
   };
+
 
   const isPartiallyUnavailable = (date) => {
     const d = new Date(date); d.setHours(0, 0, 0, 0);
@@ -524,8 +546,11 @@ export default function ResourceDetailsPage() {
 
   const cartTotal = cartItems.reduce((s, i) => s + (i.totalPrice || i.price) * (i.quantity || 1), 0);
   const isService = resource?.type === "service";
-  const canAddToCart = (selectedTimes.length > 0 || (startDate && endDate && isRangeValid()));
-
+const canAddToCart =
+  startDate &&
+  endDate &&
+  isRangeValid() &&
+  selectedTimes.length > 0;
   // Check if this specific date+time combo is already in cart (not just the resource)
   const currentCartKey = resource
     ? buildCartKey(resource._id, selectedDate, selectedTimes)
@@ -964,8 +989,9 @@ export default function ResourceDetailsPage() {
                     <div className="p-3 bg-blue-50 rounded-xl">
                       <div className="flex items-center gap-2 mb-1"><CalendarRange className="h-4 w-4 text-blue-600" /><span className="text-sm font-medium text-blue-700">Période</span></div>
                       <p className="text-sm text-blue-600">Du {startDate.toLocaleDateString("fr-FR")} au {endDate.toLocaleDateString("fr-FR")}</p>
-                      <p className="text-sm font-medium text-blue-700 mt-1">Total : {resource.price * getNumberOfDays() * 24}DT</p>
-                    </div>
+                      <p className="text-sm font-medium text-blue-700 mt-1">
+                        Total : {calculatePeriodPrice()}DT
+                      </p>                    </div>
                   )}
                 </div>
               )}
@@ -1014,7 +1040,10 @@ export default function ResourceDetailsPage() {
                       ? "Sélectionnez une date"
                       : selectedTimes.length === 0 && !endDate
                         ? "Choisissez des créneaux"
-                        : `Ajouter au panier${selectedTimes.length > 0 ? ` (${calculateTotalPrice()}DT)` : ""}`}
+                        : `Ajouter au panier (${startDate && endDate
+                          ? calculatePeriodPrice()
+                          : calculateTotalPrice()
+                        }DT)`}
                   </button>
                 </>
               )}

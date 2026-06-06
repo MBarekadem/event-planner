@@ -70,14 +70,25 @@ const ToastContainer = ({ toasts, removeToast }) => (
   </div>
 );
 
+// === Composant message d'erreur ===
+const FieldError = ({ error }) =>
+  error ? (
+    <span style={{ display: "flex", alignItems: "center", gap: 5, color: "#dc2626", fontSize: 12, marginTop: 5 }}>
+      <XCircle size={13} />
+      {error}
+    </span>
+  ) : null;
 
-// === Carte — FIX boucle infinie ===
-// On passe uniquement les coordonnées primitives et un callback stable
+// === Style pour champ en erreur ===
+const inputStyle = (hasError) => hasError
+  ? { borderColor: "#fca5a5", background: "#fef2f2" }
+  : {};
+
+// === Carte ===
 const LocationPicker = ({ centerLat, centerLng, onLocationChange }) => {
   const [markerPos, setMarkerPos] = useState(
     centerLat && centerLng ? { lat: centerLat, lng: centerLng } : null
   );
-  // Sync externe → marqueur (seulement quand les coords changent réellement)
   const prevCenter = useRef({ lat: centerLat, lng: centerLng });
   useEffect(() => {
     if (
@@ -130,6 +141,78 @@ const LocationPicker = ({ centerLat, centerLng, onLocationChange }) => {
   );
 };
 
+// === Validation ===
+const buildValidate = (form, isPrestataire) => () => {
+  const errors = {};
+
+  // Email
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!form.email || !emailRegex.test(form.email))
+    errors.email = "Adresse email invalide.";
+
+  // Mot de passe
+  const pwRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
+  if (!form.password || !pwRegex.test(form.password))
+    errors.password = "Min. 8 caractères, 1 majuscule, 1 chiffre, 1 caractère spécial.";
+
+  // Téléphone
+  const telClean = (form.numTel || "").replace(/\s/g, "");
+  const telRegex = /^\+?[0-9]{8,12}$/;
+  if (!telClean || !telRegex.test(telClean))
+    errors.numTel = "Numéro invalide (8 à 12 chiffres, préfixe + autorisé).";
+
+  // Localisation (optionnelle mais si saisie, min 3 chars)
+  if (form.locationName && form.locationName.trim().length > 0 && form.locationName.trim().length < 3)
+    errors.locationName = "Nom de localisation trop court (min. 3 caractères).";
+
+  // Photo de profil / logo (optionnel)
+  if (form.image) {
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(form.image.type))
+      errors.image = "Format non supporté. Utilisez JPG, PNG ou WEBP.";
+    else if (form.image.size > 5 * 1024 * 1024)
+      errors.image = "Image trop lourde (max 5 Mo).";
+  }
+
+  if (!isPrestataire) {
+    // Prénom
+    const nameRegex = /^[a-zA-ZÀ-ÿ\s\-]{2,50}$/;
+    if (!form.firstname || !nameRegex.test(form.firstname.trim()))
+      errors.firstname = "Prénom invalide (2 à 50 lettres, espaces ou tirets).";
+
+    // Nom
+    if (!form.lastname || !nameRegex.test(form.lastname.trim()))
+      errors.lastname = "Nom invalide (2 à 50 lettres, espaces ou tirets).";
+  }
+
+  if (isPrestataire) {
+    // Nom de société
+    if (!form.nomSociete || form.nomSociete.trim().length < 2)
+      errors.nomSociete = "Nom de société requis (min. 2 caractères).";
+    else if (/[<>\\/]/.test(form.nomSociete))
+      errors.nomSociete = "Caractères interdits dans le nom de société.";
+    else if (form.nomSociete.trim().length > 100)
+      errors.nomSociete = "Nom de société trop long (max 100 caractères).";
+
+    // Numéro de patente : format XX-000000 (2 lettres, tiret, 6+ chiffres)
+    const patenteRegex = /^[A-Z]{2}-\d{6,}$/;
+    if (!form.numPatente || !patenteRegex.test(form.numPatente.trim().toUpperCase()))
+      errors.numPatente = "Format attendu : XX-000000 (ex: TU-123456).";
+
+    // Fichier patente
+    if (!form.patenteFile) {
+      errors.patenteFile = "Le document patente est obligatoire.";
+    } else {
+      if (form.patenteFile.type !== "application/pdf")
+        errors.patenteFile = "Le fichier doit être un PDF.";
+      else if (form.patenteFile.size > 5 * 1024 * 1024)
+        errors.patenteFile = "Fichier trop lourd (max 5 Mo).";
+    }
+  }
+
+  return errors;
+};
+
 // === Page Signup ===
 export default function Signup() {
   const navigate = useNavigate();
@@ -138,10 +221,10 @@ export default function Signup() {
   const [role, setRole] = useState("organisateur");
   const [showPendingPopup, setShowPendingPopup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const [form, setForm] = useState({
     firstname: "", lastname: "",
-
     nomSociete: "",
     email: "", password: "",
     numPatente: "", numTel: "",
@@ -149,37 +232,45 @@ export default function Signup() {
     locationLat: null, locationLng: null,
     locationName: "",
   });
+
   useEffect(() => {
     const delay = setTimeout(async () => {
       if (!form.locationName || form.locationName.length < 3) return;
-
       const coords = await getCoordinates(form.locationName);
-
       if (coords) {
         setMapLat(coords.lat);
         setMapLng(coords.lng);
-
-        setForm(f => ({
-          ...f,
-          locationLat: coords.lat,
-          locationLng: coords.lng
-        }));
+        setForm(f => ({ ...f, locationLat: coords.lat, locationLng: coords.lng }));
       }
     }, 600);
-
     return () => clearTimeout(delay);
   }, [form.locationName]);
-  const [preview, setPreview] = useState(null);
 
-  // Coordonnées de la carte stockées séparément pour éviter les re-renders en cascade
+  const [preview, setPreview] = useState(null);
   const [mapLat, setMapLat] = useState(36.8065);
   const [mapLng, setMapLng] = useState(10.1815);
 
-  const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  // Efface l'erreur du champ modifié
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setErrors(prev => ({ ...prev, [name]: undefined }));
+    setForm(f => ({ ...f, [name]: value }));
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    // Validation immédiate à la sélection
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setErrors(prev => ({ ...prev, image: "Format non supporté (JPG, PNG, WEBP)." }));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, image: "Image trop lourde (max 5 Mo)." }));
+      return;
+    }
+    setErrors(prev => ({ ...prev, image: undefined }));
     setPreview(URL.createObjectURL(file));
     setForm(f => ({ ...f, image: file }));
   };
@@ -187,8 +278,19 @@ export default function Signup() {
   const handlePatenteChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    // Validation immédiate à la sélection
+    if (file.type !== "application/pdf") {
+      setErrors(prev => ({ ...prev, patenteFile: "Le fichier doit être un PDF." }));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, patenteFile: "Fichier trop lourd (max 5 Mo)." }));
+      return;
+    }
+    setErrors(prev => ({ ...prev, patenteFile: undefined }));
     setForm(f => ({ ...f, patenteFile: file }));
   };
+
   const getLocationName = async (lat, lng) => {
     try {
       const res = await fetch(
@@ -207,39 +309,29 @@ export default function Signup() {
         `https://nominatim.openstreetmap.org/search?q=${name}&format=json&limit=1`
       );
       const data = await res.json();
-
       if (data && data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon),
-        };
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
       }
       return null;
     } catch {
       return null;
     }
   };
+
   const handleRoleChange = (newRole) => {
     setRole(newRole);
+    setErrors({});
     setForm(f => ({ ...f, numPatente: "", numTel: "", patenteFile: null, nomSociete: "" }));
   };
 
-  // Callback stable pour la carte
   const handleLocationChange = useCallback(async (lat, lng) => {
     setMapLat(lat);
     setMapLng(lng);
-
     const name = await getLocationName(lat, lng);
-
-    setForm(f => ({
-      ...f,
-      locationLat: lat,
-      locationLng: lng,
-      locationName: name
-    }));
+    setErrors(prev => ({ ...prev, locationName: undefined }));
+    setForm(f => ({ ...f, locationLat: lat, locationLng: lng, locationName: name }));
   }, []);
 
-  // Détection auto au premier chargement — appelée UNE seule fois
   useEffect(() => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -250,7 +342,7 @@ export default function Signup() {
       () => toast.warning("Position non détectée automatiquement")
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // tableau vide intentionnel — une seule fois au mount
+  }, []);
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) { toast.warning("Géolocalisation non supportée"); return; }
@@ -263,13 +355,30 @@ export default function Signup() {
     );
   };
 
+  const isPrestataire = role === "prestataire";
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validation complète avant envoi
+    const validate = buildValidate(form, isPrestataire);
+    const validationErrors = validate();
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      toast.error("Veuillez corriger les erreurs du formulaire.");
+      // Scroll vers le premier champ en erreur
+      const firstErrorKey = Object.keys(validationErrors)[0];
+      const el = document.querySelector(`[name="${firstErrorKey}"]`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    setErrors({});
     setIsSubmitting(true);
 
     const formData = new FormData();
 
-    if (role === "prestataire") {
+    if (isPrestataire) {
       formData.append("firstname", form.nomSociete);
       formData.append("lastname", "");
       formData.append("nomSociete", form.nomSociete);
@@ -281,27 +390,21 @@ export default function Signup() {
     if (form.locationLat && form.locationLng) {
       formData.append("location", JSON.stringify({
         type: "Point",
-        coordinates: [form.locationLng, form.locationLat], // [lng, lat] — ordre MongoDB
+        coordinates: [form.locationLng, form.locationLat],
       }));
     } else {
-      // Valeur par défaut : Tunis
       formData.append("location", JSON.stringify({
         type: "Point",
         coordinates: [10.1815, 36.8065],
       }));
     }
-    formData.append(
-      "locationName",
-      form.locationName || "Position sélectionnée"
-    );
+    formData.append("locationName", form.locationName || "Position sélectionnée");
     formData.append("numTel", form.numTel);
-
-
     formData.append("email", form.email);
     formData.append("password", form.password);
     formData.append("role", role);
 
-    if (role === "prestataire") {
+    if (isPrestataire) {
       formData.append("numPatente", form.numPatente);
       if (form.patenteFile) formData.append("patente", form.patenteFile);
     }
@@ -315,13 +418,9 @@ export default function Signup() {
       const data = await res.json();
 
       if (res.ok) {
-        if (role === "prestataire") {
-
-          // Affiche la popup — la navigation se fait depuis le bouton "J'ai compris"
+        if (isPrestataire) {
           setShowPendingPopup(true);
-
         } else {
-          // Organisateur → login directement
           toast.success("Compte créé avec succès ! 🎉");
           setTimeout(() => navigate("/login"), 1000);
         }
@@ -334,8 +433,6 @@ export default function Signup() {
       setIsSubmitting(false);
     }
   };
-
-  const isPrestataire = role === "prestataire";
 
   return (
     <div className="auth-container">
@@ -380,53 +477,107 @@ export default function Signup() {
             ))}
           </div>
 
-          <form className="signup-form" onSubmit={handleSubmit}>
+          <form className="signup-form" onSubmit={handleSubmit} noValidate>
             {/* Nom / prénom ou société */}
             {!isPrestataire ? (
               <>
                 <div className="field-wrap">
                   <label>Prénom</label>
-                  <input name="firstname" placeholder="Votre prénom" value={form.firstname} onChange={handleChange} required />
+                  <input
+                    name="firstname"
+                    placeholder="Votre prénom"
+                    value={form.firstname}
+                    onChange={handleChange}
+                    style={inputStyle(errors.firstname)}
+                  />
+                  <FieldError error={errors.firstname} />
                 </div>
                 <div className="field-wrap">
                   <label>Nom</label>
-                  <input name="lastname" placeholder="Votre nom" value={form.lastname} onChange={handleChange} required />
+                  <input
+                    name="lastname"
+                    placeholder="Votre nom"
+                    value={form.lastname}
+                    onChange={handleChange}
+                    style={inputStyle(errors.lastname)}
+                  />
+                  <FieldError error={errors.lastname} />
                 </div>
               </>
             ) : (
               <div className="field-wrap span-2">
                 <label>Nom de société</label>
-                <input name="nomSociete" placeholder="Ex: Traiteur El Amal, Studio Photo Lumière..." value={form.nomSociete} onChange={handleChange} required />
+                <input
+                  name="nomSociete"
+                  placeholder="Ex: Traiteur El Amal, Studio Photo Lumière..."
+                  value={form.nomSociete}
+                  onChange={handleChange}
+                  style={inputStyle(errors.nomSociete)}
+                />
+                <FieldError error={errors.nomSociete} />
               </div>
             )}
+
             <div className="field-wrap span-2">
               <label>Numéro de téléphone</label>
-              <input name="numTel" type="tel" placeholder="Ex: +216 12 345 678" value={form.numTel} onChange={handleChange} required />
+              <input
+                name="numTel"
+                type="tel"
+                placeholder="Ex: +216 12 345 678"
+                value={form.numTel}
+                onChange={handleChange}
+                style={inputStyle(errors.numTel)}
+              />
+              <FieldError error={errors.numTel} />
             </div>
+
             <div className="field-wrap span-2">
               <label>Email</label>
-              <input type="email" name="email" placeholder="exemple@email.com" value={form.email} onChange={handleChange} required />
+              <input
+                type="email"
+                name="email"
+                placeholder="exemple@email.com"
+                value={form.email}
+                onChange={handleChange}
+                style={inputStyle(errors.email)}
+              />
+              <FieldError error={errors.email} />
             </div>
 
             <div className="field-wrap span-2">
               <label>Mot de passe</label>
-              <input type="password" name="password" placeholder="••••••••" value={form.password} onChange={handleChange} required />
+              <input
+                type="password"
+                name="password"
+                placeholder="••••••••"
+                value={form.password}
+                onChange={handleChange}
+                style={inputStyle(errors.password)}
+              />
+              <FieldError error={errors.password} />
+              {!errors.password && (
+                <span style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
+                  Min. 8 caractères, 1 majuscule, 1 chiffre, 1 caractère spécial
+                </span>
+              )}
             </div>
 
             {/* Carte interactive */}
             <div className="field-wrap span-2" style={{ marginTop: 8 }}>
               <label>📍 Votre position sur la carte</label>
               <div className="field-wrap span-2">
-
                 <input
                   type="text"
+                  name="locationName"
                   placeholder="Ex: Tunis, Sfax..."
                   value={form.locationName}
-                  onChange={(e) =>
-                    setForm(f => ({ ...f, locationName: e.target.value }))
-                  }
-
+                  onChange={(e) => {
+                    setErrors(prev => ({ ...prev, locationName: undefined }));
+                    setForm(f => ({ ...f, locationName: e.target.value }));
+                  }}
+                  style={inputStyle(errors.locationName)}
                 />
+                <FieldError error={errors.locationName} />
               </div>
               <LocationPicker
                 centerLat={mapLat}
@@ -463,7 +614,17 @@ export default function Signup() {
                 >
                   <div className="field-wrap span-2">
                     <label>Numéro de patente</label>
-                    <input name="numPatente" placeholder="Ex: TU-123456" value={form.numPatente} onChange={handleChange} required />
+                    <input
+                      name="numPatente"
+                      placeholder="Ex: TU-123456"
+                      value={form.numPatente}
+                      onChange={(e) => {
+                        setErrors(prev => ({ ...prev, numPatente: undefined }));
+                        setForm(f => ({ ...f, numPatente: e.target.value.toUpperCase() }));
+                      }}
+                      style={inputStyle(errors.numPatente)}
+                    />
+                    <FieldError error={errors.numPatente} />
                   </div>
                   <div className="field-wrap span-2">
                     <label>Document patente (PDF)</label>
@@ -471,12 +632,16 @@ export default function Signup() {
                       htmlFor="patenteInput"
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
-                        border: "1.5px dashed #a78bfa", borderRadius: 10, padding: "14px 16px",
-                        background: "#faf5ff", cursor: "pointer",
+                        border: errors.patenteFile
+                          ? "1.5px dashed #fca5a5"
+                          : "1.5px dashed #a78bfa",
+                        borderRadius: 10, padding: "14px 16px",
+                        background: errors.patenteFile ? "#fef2f2" : "#faf5ff",
+                        cursor: "pointer",
                       }}
                     >
                       <div>
-                        <strong style={{ fontSize: 13, color: "#5b21b6", display: "block" }}>
+                        <strong style={{ fontSize: 13, color: errors.patenteFile ? "#dc2626" : "#5b21b6", display: "block" }}>
                           {form.patenteFile ? form.patenteFile.name : "Ajouter le document patente"}
                         </strong>
                         <span style={{ fontSize: 11, color: "#94a3b8" }}>
@@ -487,7 +652,8 @@ export default function Signup() {
                         Parcourir
                       </div>
                     </label>
-                    <input id="patenteInput" type="file" accept=".pdf" onChange={handlePatenteChange} style={{ display: "none" }} required />
+                    <input id="patenteInput" type="file" accept=".pdf" onChange={handlePatenteChange} style={{ display: "none" }} />
+                    <FieldError error={errors.patenteFile} />
                   </div>
                 </motion.div>
               )}
@@ -498,7 +664,9 @@ export default function Signup() {
               <label className="field-label">
                 {isPrestataire ? "Logo de la société" : "Photo de profil"}
               </label>
-              <label className={`photo-upload-area ${preview ? "has-photo" : ""}`} htmlFor="imageInput">
+              <label className={`photo-upload-area ${preview ? "has-photo" : ""}`} htmlFor="imageInput"
+                style={errors.image ? { border: "1.5px dashed #fca5a5", background: "#fef2f2" } : {}}
+              >
                 {!preview ? (
                   <div className="photo-placeholder">
                     <div className="photo-placeholder-icon">
@@ -528,6 +696,7 @@ export default function Signup() {
                 )}
               </label>
               <input id="imageInput" type="file" accept="image/*" onChange={handleImageChange} style={{ display: "none" }} />
+              <FieldError error={errors.image} />
             </div>
 
             <button
@@ -645,9 +814,8 @@ export default function Signup() {
               </div>
             </div>
           </div>
-        )
-        }
-      </AnimatePresence >
-    </div >
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
